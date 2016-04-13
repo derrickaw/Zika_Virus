@@ -1,8 +1,11 @@
 #!/usr/bin/python3
 """
 simulator.py is a simulator for an example infection spreading across a 
-network between airports (nodes) via air travel routes (edges). The goal of this
-simulation is to test edge-based quarantine strategies for the given network. 
+network between airports/hubs (nodes) via air travel routes and roads (edges).
+The goal of this simulation is to model the Zika infection spread and
+different experiments
+
+# test edge-based quarantine strategies for the given network.
 
 Usage:
 
@@ -23,9 +26,10 @@ Option:
     --nsim=<n>      The number of simulations to perform per strategy.
 """
 
-# Title:  simulator.py
-# Authors: Nicholas A. Yager and Matthew Taylor
-# Date:   2013-01-12
+# Title:  zikaSim.py
+# Updated Authors: Tilak Patel and Derrick Williams
+# Original Authors: Nicholas A. Yager and Matthew Taylor
+# Date:   2016-04-12
 
 import copy
 import getopt
@@ -56,8 +60,8 @@ def main():
 
     # Flag defaults
     VISUALIZE = False
-    INTERNATIONAL = False
-    DOMESTIC = False
+    # INTERNATIONAL = False
+    # DOMESTIC = False
     DELAY = 0
     NUM_SIMULATIONS = 100
 
@@ -88,10 +92,10 @@ def main():
             simulations.append("clustering")
         elif o == "-v":
             VISUALIZE = True
-        elif o == "-i":
-            INTERNATIONAL = True
-        elif o == "-q":
-            DOMESTIC = True
+        # elif o == "-i":
+        #     INTERNATIONAL = True
+        # elif o == "-q":
+        #     DOMESTIC = True
         elif o == "-y":
             RECALCULATE = False
         elif o == "--delay":
@@ -143,16 +147,16 @@ def main():
     # used as cancelled edges.
 
     edgepool = network.edges(data=True)
-    if INTERNATIONAL:
-        for i,j,data in edgepool:
-            if data["international"] == False:
-                edgepool.remove((i,j,data))
-            index += 1
-    elif DOMESTIC:
-        for i,j,data in edgepool:
-            if data["domestic"] == False:
-                degrees.edgepool((i,j,data))
-            index += 1
+    # if INTERNATIONAL:
+    #     for i,j,data in edgepool:
+    #         if data["international"] == False:
+    #             edgepool.remove((i,j,data))
+    #         index += 1
+    # elif DOMESTIC:
+    #     for i,j,data in edgepool:
+    #         if data["domestic"] == False:
+    #             degrees.edgepool((i,j,data))
+    #         index += 1
 
 
     for strategy in simulations:
@@ -271,7 +275,7 @@ def simulation_data(network, time, targets, seed):
         VOID
 
     IO:
-        network.dat: A file with all of the relevent netowkr information.
+        network.dat: A file with all of the relevant network information.
 
     """
 
@@ -335,15 +339,20 @@ def create_network(nodes, edges):
     sys.stdout.flush()
     # Populate the graph with nodes.
     with open(nodes, 'r', encoding='utf-8') as f:
-
         for line in f.readlines():
             entries = line.replace('"',"").rstrip().split(",")
 
             G.add_node(int(entries[0]),
-                       country=entries[3],
-                       name=entries[1], 
-                       lat=entries[6],
-                       lon=entries[7])
+                       name=entries[1],
+                       IATA=entries[2],
+                       lat=entries[3],
+                       lon=entries[4],
+                       pop=entries[5])
+            # G.add_node(int(entries[0]),
+            #            country=entries[3],
+            #            name=entries[1],
+            #            lat=entries[6],
+            #            lon=entries[7])
 
 
     print("\t\t\t\t\t[Done]")
@@ -416,13 +425,13 @@ def create_network(nodes, edges):
     print("\t\t\t[Done]")
 
     # Flag flights as domestic or international.
-    print("\tCategorizing international and domestic flights",end="")
-    for i,j in G.edges():
-        if G.node[i]["country"] == G.node[j]['country']:
-            G[i][j]['international'] = False
-        else:
-            G[i][j]['international'] = True
-    print("\t\t[Done]")
+    # print("\tCategorizing international and domestic flights",end="")
+    # for i,j in G.edges():
+    #     if G.node[i]["country"] == G.node[j]['country']:
+    #         G[i][j]['international'] = False
+    #     else:
+    #         G[i][j]['international'] = True
+    # print("\t\t[Done]")
 
     return G
 
