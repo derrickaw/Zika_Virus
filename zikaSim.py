@@ -342,17 +342,17 @@ def create_network(nodes, edges):
         for line in f.readlines():
             entries = line.replace('"',"").rstrip().split(",")
 
-            G.add_node(int(entries[0]),
-                       name=entries[1],
-                       IATA=entries[2],
-                       lat=entries[3],
-                       lon=entries[4],
-                       pop=entries[5])
             # G.add_node(int(entries[0]),
-            #            country=entries[3],
             #            name=entries[1],
-            #            lat=entries[6],
-            #            lon=entries[7])
+            #            IATA=entries[2],
+            #            lat=entries[3],
+            #            lon=entries[4],
+            #            pop=entries[5])
+            G.add_node(int(entries[0]),
+                       country=entries[3],
+                       name=entries[1],
+                       lat=entries[6],
+                       lon=entries[7])
 
 
     print("\t\t\t\t\t[Done]")
@@ -388,15 +388,16 @@ def create_network(nodes, edges):
     print("\t\t\t\t\t\t[Done]")
 
     # Limit to the first subgraph
-    print("\tFinding largest subgraph",end="")
-    undirected = G.to_undirected()
-    subgraphs = nx.connected_component_subgraphs(undirected)
-    subgraph_nodes = subgraphs[0].nodes()
-    to_remove = list()
-    for node in G.nodes():
-        if node not in subgraph_nodes:
-            to_remove.append(node)
-    G.remove_nodes_from(to_remove)
+    # print("\tFinding largest subgraph",end="")
+    # undirected = G.to_undirected()
+    # subgraphs = nx.connected_component_subgraphs(undirected)
+    # print (subgraphs)
+    # subgraph_nodes = subgraphs[0].nodes()
+    # to_remove = list()
+    # for node in G.nodes():
+    #     if node not in subgraph_nodes:
+    #         to_remove.append(node)
+    # G.remove_nodes_from(to_remove)
     print("\t\t\t\t[Done]")
 
     
