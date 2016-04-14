@@ -342,17 +342,17 @@ def create_network(nodes, edges):
         for line in f.readlines():
             entries = line.replace('"',"").rstrip().split(",")
 
-            # G.add_node(int(entries[0]),
-            #            name=entries[1],
-            #            IATA=entries[2],
-            #            lat=entries[3],
-            #            lon=entries[4],
-            #            pop=entries[5])
             G.add_node(int(entries[0]),
-                       country=entries[3],
                        name=entries[1],
-                       lat=entries[6],
-                       lon=entries[7])
+                       IATA=entries[2],
+                       lat=entries[3],
+                       lon=entries[4],
+                       pop=entries[5])
+            # G.add_node(int(entries[0]),
+            #            country=entries[3],
+            #            name=entries[1],
+            #            lat=entries[6],
+            #            lon=entries[7])
 
 
     print("\t\t\t\t\t[Done]")
@@ -369,15 +369,21 @@ def create_network(nodes, edges):
         for line in f.readlines():
             entries = line.replace('"',"").rstrip().split(",")
             try:
-                if G.has_edge(int(entries[3]),int(entries[5])):
+                # if G.has_edge(int(entries[3]),int(entries[5])):
+                if G.has_edge(int(entries[1]),int(entries[3])):
                     duplicate_count += 1
                 else:
                     if line_num > 1:
-                        from_vertex = int(entries[3])
-                        to_vertex = int(entries[5])
+                        # from_vertex = int(entries[3])
+                        # to_vertex = int(entries[5])
+                        # G.add_edge(from_vertex, to_vertex )
+                        # G.edge[from_vertex][to_vertex]['IATAFrom'] = entries[2]
+                        # G.edge[from_vertex][to_vertex]['IATATo'] = entries[4]
+                        from_vertex = int(entries[1])
+                        to_vertex = int(entries[3])
                         G.add_edge(from_vertex, to_vertex )
-                        G.edge[from_vertex][to_vertex]['IATAFrom'] = entries[2]
-                        G.edge[from_vertex][to_vertex]['IATATo'] = entries[4]
+                        G.edge[from_vertex][to_vertex]['IATAFrom'] = entries[0]
+                        G.edge[from_vertex][to_vertex]['IATATo'] = entries[2]
                         edge_count += 1
             except ValueError:
                 # The value doesn't exist
