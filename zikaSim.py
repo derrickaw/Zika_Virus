@@ -42,6 +42,8 @@ import random
 import sys
 from scipy import stats
 import time
+from mpl_toolkits.basemap import Basemap
+
 
 global VISUALIZE
 
@@ -110,126 +112,138 @@ def main():
     random.seed(seed)
 
     # Identify the script.
-    print("Air Disease Simulator 2.0.0")
-    print("Created by Nicholas A. Yager and Matthew Taylor\n\n")
+    # print("Air Disease Simulator 2.0.0")
+    # print("Created by Nicholas A. Yager and Matthew Taylor\n\n")
 
     # Create the network using the command arguments.
     network = create_network(AIRPORT_DATA, ROUTE_DATA)
   
     # Generate target-selection weights, and choose target vertices to infect.
+    # Dict of node id with degrees per node
     degrees = network.degree()
-    weights = dict()
-    for airport, degree in degrees.items():
-        weights[airport] = network.out_degree(airport) +\
-                           network.in_degree(airport)
-    targets = list()
-    for ind in range(0,NUM_SIMULATIONS):
-        target_round = list()
-        while len(target_round) < 10:
-             chosen_airport = weighted_random(weights)
-             if chosen_airport not in target_round:
-                 target_round.append(chosen_airport)
-        targets.append(target_round)
 
+    #pos = nx.get_node_attributes(network,'pos')
+    # print (pos)
 
-    # Make a directory for the data, and change into that directory.
-    currenttime = time.strftime("%Y-%m-%dT%H%M%S", time.gmtime())
-    os.makedirs(currenttime)
-    os.chdir(currenttime)
+    #position = nx.spring_layout(network, scale=2)
+    #visualize(network, "", position)
+    visualize(network)
 
-    # Record relevent data about the simulation.
-    # TMP simulation_data(network, currenttime, target, seed)
+    #nx.draw(network, pos)
+    #plt.savefig("hello.png")
 
-
-    # Prepare simulations
-
-    # Remove some edges as per necessary from the pool of edges that can be
-    # used as cancelled edges.
-
-    edgepool = network.edges(data=True)
-    # if INTERNATIONAL:
-    #     for i,j,data in edgepool:
-    #         if data["international"] == False:
-    #             edgepool.remove((i,j,data))
-    #         index += 1
-    # elif DOMESTIC:
-    #     for i,j,data in edgepool:
-    #         if data["domestic"] == False:
-    #             degrees.edgepool((i,j,data))
-    #         index += 1
-
-
-    for strategy in simulations:
-    
-        print("{0} Mode.".format(strategy) )
-
-        index = 0
-
-        # Generate a list a sorted list of flights to cancel based on the
-        # strategy.
-        
-        cancellist = list()
-        if strategy == "random":
-            # Sort the edges randomly
-
-            cancellist = random.sample(edgepool, len(edgepool))
-
-        elif strategy == "clustering":
-            # Sort the edges based on the sum of the clustering coefficent.
-
-            sorted_cluster = sorted(edgepool, key=lambda k: k[2]['cluster'],
-                            reverse=True)
-            for cluster_item in sorted_cluster:
-                if network[cluster_item[0]][cluster_item[1]]['cluster'] < 2:
-                    if network[cluster_item[0]][cluster_item[1]]['cluster'] > 0:
-                        cancellist.append((cluster_item[0], cluster_item[1]))
-
-        elif strategy == "betweenness":
-            # Sort the edges based on weighted edge-betweenness.
-
-            betweennesses = nx.edge_betweenness_centrality(network,
-                                                           weight="weight")
-            cancellist = sorted(betweennesses.keys(), 
-                                key=lambda k: betweennesses[k], reverse=True)
-
-
-        print(cancellist[:20])
-        # Make a new folder for the data.
-        os.makedirs(strategy)
-        
-        iteration = 0
-        efforts = [0]
-        efforts.extend(range(1,101,5))
-        for target in targets:
-
-            # Open a file for this targets dataset
-            output_file = open("{0}/{0}_{1}.csv".format(strategy,
-                                                        pad_string(iteration,4)
-                                                        ),"w")
-            output_file.write('"effort","total_infected, edges_closed"\n')
-
-
-            for effort in efforts:
-                if effort != 0:
-                    max_index = int(len(cancellist) * (effort/100))-1
-                    cancelled = cancellist[0:max_index]
-                else:
-                    cancelled = None
-
-                title = "{0} - {1}%".format(strategy, effort/100)
-                results = infection(network, cancelled, target, vis=VISUALIZE,
-                                    title=title, DELAY=DELAY)
-                total_infected = results["Infected"] + results["Recovered"]
-                output_file.write("{0},{1}\n".format(effort/100,total_infected))
-                
-                if total_infected == 1:
-                    for remaining_effort in range(effort+5,101,5):
-                        output_file.write("{0},{1}\n".format(remaining_effort/100,
-                                                              total_infected))
-                    break
-
-            iteration += 1
-            output_file.close()
+    # weights = dict()
+    # for airport, degree in degrees.items():
+    #     weights[airport] = network.out_degree(airport) +\
+    #                        network.in_degree(airport)
+    # targets = list()
+    # for ind in range(0,NUM_SIMULATIONS):
+    #     target_round = list()
+    #     while len(target_round) < 10:
+    #          chosen_airport = weighted_random(weights)
+    #          if chosen_airport not in target_round:
+    #              target_round.append(chosen_airport)
+    #     targets.append(target_round)
+    #
+    #
+    # # Make a directory for the data, and change into that directory.
+    # currenttime = time.strftime("%Y-%m-%dT%H%M%S", time.gmtime())
+    # os.makedirs(currenttime)
+    # os.chdir(currenttime)
+    #
+    # # Record relevent data about the simulation.
+    # # TMP simulation_data(network, currenttime, target, seed)
+    #
+    #
+    # # Prepare simulations
+    #
+    # # Remove some edges as per necessary from the pool of edges that can be
+    # # used as cancelled edges.
+    #
+    # edgepool = network.edges(data=True)
+    # # if INTERNATIONAL:
+    # #     for i,j,data in edgepool:
+    # #         if data["international"] == False:
+    # #             edgepool.remove((i,j,data))
+    # #         index += 1
+    # # elif DOMESTIC:
+    # #     for i,j,data in edgepool:
+    # #         if data["domestic"] == False:
+    # #             degrees.edgepool((i,j,data))
+    # #         index += 1
+    #
+    #
+    # for strategy in simulations:
+    #
+    #     print("{0} Mode.".format(strategy) )
+    #
+    #     index = 0
+    #
+    #     # Generate a list a sorted list of flights to cancel based on the
+    #     # strategy.
+    #
+    #     cancellist = list()
+    #     if strategy == "random":
+    #         # Sort the edges randomly
+    #
+    #         cancellist = random.sample(edgepool, len(edgepool))
+    #
+    #     elif strategy == "clustering":
+    #         # Sort the edges based on the sum of the clustering coefficent.
+    #
+    #         sorted_cluster = sorted(edgepool, key=lambda k: k[2]['cluster'],
+    #                         reverse=True)
+    #         for cluster_item in sorted_cluster:
+    #             if network[cluster_item[0]][cluster_item[1]]['cluster'] < 2:
+    #                 if network[cluster_item[0]][cluster_item[1]]['cluster'] > 0:
+    #                     cancellist.append((cluster_item[0], cluster_item[1]))
+    #
+    #     elif strategy == "betweenness":
+    #         # Sort the edges based on weighted edge-betweenness.
+    #
+    #         betweennesses = nx.edge_betweenness_centrality(network,
+    #                                                        weight="weight")
+    #         cancellist = sorted(betweennesses.keys(),
+    #                             key=lambda k: betweennesses[k], reverse=True)
+    #
+    #
+    #     print(cancellist[:20])
+    #     # Make a new folder for the data.
+    #     os.makedirs(strategy)
+    #
+    #     iteration = 0
+    #     efforts = [0]
+    #     efforts.extend(range(1,101,5))
+    #     for target in targets:
+    #
+    #         # Open a file for this targets dataset
+    #         output_file = open("{0}/{0}_{1}.csv".format(strategy,
+    #                                                     pad_string(iteration,4)
+    #                                                     ),"w")
+    #         output_file.write('"effort","total_infected, edges_closed"\n')
+    #
+    #
+    #         for effort in efforts:
+    #             if effort != 0:
+    #                 max_index = int(len(cancellist) * (effort/100))-1
+    #                 cancelled = cancellist[0:max_index]
+    #             else:
+    #                 cancelled = None
+    #
+    #             title = "{0} - {1}%".format(strategy, effort/100)
+    #             results = infection(network, cancelled, target, vis=VISUALIZE,
+    #                                 title=title, DELAY=DELAY)
+    #             total_infected = results["Infected"] + results["Recovered"]
+    #             output_file.write("{0},{1}\n".format(effort/100,total_infected))
+    #
+    #             if total_infected == 1:
+    #                 for remaining_effort in range(effort+5,101,5):
+    #                     output_file.write("{0},{1}\n".format(remaining_effort/100,
+    #                                                           total_infected))
+    #                 break
+    #
+    #         iteration += 1
+    #         output_file.close()
 
 
 
@@ -243,7 +257,7 @@ def weighted_random(weights):
 
 def pad_string(integer, n):
     """
-    Add "0" to the front of an interger so that the resulting string in n 
+    Add "0" to the front of an integer so that the resulting string in n
     characters long.
 
     Args:
@@ -308,7 +322,7 @@ def simulation_data(network, time, targets, seed):
 
     print("\tStoring network parameters")
 
-    data_file = open("network.dat", "w")
+    data_file = open("network.csv", "w")
     data_file.write("Simulation name: {0}\n\n".format(time))
     data_file.write("Network properties\n===============\n")
     data_file.write("Network type: {0}\n".format(network_type))
@@ -347,7 +361,8 @@ def create_network(nodes, edges):
                        IATA=entries[2],
                        lat=entries[3],
                        lon=entries[4],
-                       pop=entries[5])
+                       pop=entries[5],
+                       pos=(float(entries[3]),float(entries[4])))
             # G.add_node(int(entries[0]),
             #            country=entries[3],
             #            name=entries[1],
@@ -407,13 +422,13 @@ def create_network(nodes, edges):
     print("\t\t\t\t[Done]")
 
     
-    print("\tRemoving isolated vertices",end="")
-    # Remove nodes without inbound edges
-    indeg = G.in_degree()
-    outdeg = G.out_degree()
-    to_remove = [n for n in indeg if (indeg[n] + outdeg[n] < 1)] 
-    G.remove_nodes_from(to_remove)
-    print("\t\t\t\t[Done]")
+    # print("\tRemoving isolated vertices",end="")
+    # # Remove nodes without inbound edges
+    # indeg = G.in_degree()
+    # outdeg = G.out_degree()
+    # to_remove = [n for n in indeg if (indeg[n] + outdeg[n] < 1)]
+    # G.remove_nodes_from(to_remove)
+    # print("\t\t\t\t[Done]")
 
 
 
@@ -663,31 +678,99 @@ def infection(input_network, vaccination, starts,DELAY=0, vis = False,
 
     return {"Suscceptable":S,"Infected":I, "Recovered":R}
 
-       
-def visualize(network, title,pos):
+
+def visualize(network):
+    print("-- Starting to Visualize --")
+
+    m = Basemap(
+        #projection='cea',
+        #width=10000000,
+        #height=4000000,
+        projection='merc',
+        ellps='WGS84',
+        llcrnrlat=15, urcrnrlat=50,
+        llcrnrlon=-160, urcrnrlon=-60,
+        resolution="l"
+        )
+
+    pos = dict()
+
+    for pos_node in network.nodes():
+        # Normalize the lat and lon values
+        x,y = m(float(network.node[pos_node]['lon']),
+                float(network.node[pos_node]['lat']))
+
+        pos[pos_node] = [x,y]
+
+    #m.drawmapboundary("aqua")
+    #m.fillcontinents("#555555")
+    m.bluemarble()
+
+    # First pass - Green lines
+    nx.draw_networkx_edges(network,pos,edgelist=network.edges(),
+            width=1,
+            edge_color="green",
+            alpha=0.5,
+            arrows=False)
+
+    nx.draw_networkx_nodes(network,
+            pos,
+            linewidths=1,
+            node_size=10,
+            with_labels=False,
+            node_color = "green")
+
+    #m.bluemarble()
+    #plt.title=title
+
+    # Adjust the plot limits
+    cut = 1.05
+    xmax = cut * max(xx for xx,yy in pos.values())
+    xmin =  min(xx for xx,yy in pos.values())
+    xmin = xmin - (cut * xmin)
+
+
+    ymax = cut * max(yy for xx,yy in pos.values())
+    ymin = (cut) * min(yy for xx,yy in pos.values())
+    ymin = ymin - (cut * ymin)
+
+    plt.xlim(xmin,xmax)
+    plt.ylim(ymin,ymax)
+
+    plt.axis('off')
+    plt.show()
+    plt.close()
+
+
+
+
+def visualize2(network, title, pos):
     """
-    Visualize the network given an array of posisitons.
+    Visualize the network given an array of positions.
     """
     print("-- Starting to Visualize --")
-    MAP = False
+    MAP = True
 
-    if MAP:
-        m = Basemap(
-            projection='cea',
-            llcrnrlat=-90, urcrnrlat=90,
-            llcrnrlon=-180, urcrnrlon=180,
-            resolution=None
-            )
+    #if MAP:
+    m = Basemap(
+        #projection='cea',
+        projection='merc',
+        ellps='WGS84',
+        llcrnrlat=20, urcrnrlat=50,
+        llcrnrlon=-130, urcrnrlon=-90,
+        resolution=None
+        )
 
-        pos = dict()
+    pos = dict()
 
-        for pos_node in network.nodes():
-            # Normalize the lat and lon values
-            x,y = m(float(network.node[pos_node]['lon']),
-                    float(network.node[pos_node]['lat']))
-        
-            pos[pos_node] = [x,y]
+    for pos_node in network.nodes():
+        # Normalize the lat and lon values
+        x,y = m(float(network.node[pos_node]['lon']),
+                float(network.node[pos_node]['lat']))
 
+        pos[pos_node] = [x,y]
+
+    #m.fillcontinents(color="brown")
 
     colors = []
     i_edge_colors = []
@@ -708,7 +791,8 @@ def visualize(network, title,pos):
             infected.append((i,j))
             i_edge_colors.append(color)
 
-    plt.figure(figsize=(7,7))
+    #plt.figure(figsize=(10,10))
+    #plt.figure(figsize=(7,7))
 
     # Fist pass - Gray lines
     nx.draw_networkx_edges(network,pos,edgelist=default,
@@ -745,9 +829,9 @@ def visualize(network, title,pos):
     plt.xlim(xmin,xmax)
     plt.ylim(ymin,ymax)
 
-    if MAP:
+    #if MAP:
         # Draw the map
-        m.bluemarble()
+    m.bluemarble()
     plt.title=title
 
     plt.axis('off')
