@@ -43,6 +43,8 @@ import sys
 from scipy import stats
 import time
 from mpl_toolkits.basemap import Basemap
+import queue
+
 
 
 global VISUALIZE
@@ -94,10 +96,6 @@ def main():
             simulations.append("clustering")
         elif o == "-v":
             VISUALIZE = True
-        # elif o == "-i":
-        #     INTERNATIONAL = True
-        # elif o == "-q":
-        #     DOMESTIC = True
         elif o == "-y":
             RECALCULATE = False
         elif o == "--delay":
@@ -105,15 +103,8 @@ def main():
         elif o == "--nsim":
             NUM_SIMULATIONS = int(a)
 
-
-            
-
     seed = 100
     random.seed(seed)
-
-    # Identify the script.
-    # print("Air Disease Simulator 2.0.0")
-    # print("Created by Nicholas A. Yager and Matthew Taylor\n\n")
 
     # Create the network using the command arguments.
     network = create_network(AIRPORT_DATA, ROUTE_DATA)
@@ -127,7 +118,229 @@ def main():
 
     #position = nx.spring_layout(network, scale=2)
     #visualize(network, "", position)
+
+
+    infectCity(network, "ATL")
+    for i in range(111,150):
+        infection(network, i)
+
     visualize(network)
+
+
+
+
+def create_network(nodes, edges):
+    """
+    Create a NetworkX graph object using the airport and route databases.
+
+    Args:
+        nodes: The file path to the nodes .csv file.
+        edeges: The file path to the edges .csv file.
+
+    Returns:
+        G: A NetworkX DiGraph object populated with the nodes and edges assigned
+           by the data files from the arguments.
+
+    """
+
+    print("Creating network.")
+    G = nx.DiGraph()
+
+    print("\tLoading airports", end="")
+    sys.stdout.flush()
+    # Populate the graph with nodes.
+    with open(nodes, 'r', encoding='utf-8') as f:
+        for line in f.readlines():
+            entries = line.replace('"',"").rstrip().split(",")
+
+            G.add_node(int(entries[0]),
+                       name=entries[1],
+                       IATA=entries[2],
+                       lat=entries[3],
+                       lon=entries[4],
+                       #pop=entries[5],
+                       pos=(float(entries[3]),float(entries[4])),
+                       I=[0],
+                       S=int(entries[5]),       #createHumans(int(entries[5])),
+                       V=0,
+                       R=0
+                       )
+
+    #for node in G.nodes_iter(G):
+    #    print (len(node[1]["S"]))
+    print("\t\t\t\t\t[Done]")
+
+    print("\tLoading routes",end="")
+    sys.stdout.flush()
+    # Populate the graph with edges.
+    edge_count = 0
+    error_count = 0
+    duplicate_count = 0
+    line_num = 1
+    with open(edges, 'r', encoding="utf-8") as f:
+
+        for line in f.readlines():
+            entries = line.replace('"',"").rstrip().split(",")
+            try:
+                # if G.has_edge(int(entries[3]),int(entries[5])):
+                if G.has_edge(int(entries[1]),int(entries[3])):
+                    duplicate_count += 1
+                else:
+                    if line_num > 1:
+                        from_vertex = int(entries[1])
+                        to_vertex = int(entries[3])
+                        G.add_edge(from_vertex, to_vertex )
+                        G.edge[from_vertex][to_vertex]['IATAFrom'] = entries[0]
+                        G.edge[from_vertex][to_vertex]['IATATo'] = entries[2]
+                        edge_count += 1
+            except ValueError:
+                # The value doesn't exist
+                error_count += 1
+                pass
+            line_num += 1
+
+    print("\t\t\t\t\t\t[Done]")
+
+
+
+    # Calculate the edge weights
+    print("\tCalculating edge weights",end="")
+    G = calculate_weights(G)
+    print("\t\t\t\t[Done]")
+
+    # Add clustering data
+    print("\tCalculating clustering coefficents",end="")
+    cluster_network = nx.Graph(G)
+    lcluster = nx.clustering(cluster_network)
+    for i,j in G.edges():
+        cluster_sum = lcluster[i] + lcluster[j]
+        G[i][j]['cluster'] = cluster_sum
+    print("\t\t\t[Done]")
+
+    return G
+
+
+
+
+
+
+def infection(input_network, timeStep):
+
+    mosCurve = [0,0,0,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0] # phx, # TODO - REMOVE
+    tau = 4 # Zika Virus "Ro"
+    #print ("timeStep",timeStep)
+    approxMonth = timeStep // 30
+
+    for node in input_network.nodes_iter(input_network):
+        #if node[1]["IATA"] == "ATL":
+        # Check for recovery
+        if node[1]["I"][0] > 0:
+            if timeStep - node[1]["I"][1][0] >= 7:
+                group = node[1]["I"].pop(1)
+                node[1]["I"][0] -= group[1]
+
+        # Infect
+        newlyInfected = min(math.ceil(tau * mosCurve[approxMonth] *
+                        node[1]["I"][0]), node[1]["S"])
+        if newlyInfected > 0:
+            node[1]["S"] -= newlyInfected
+            node[1]["I"].append((timeStep,newlyInfected))
+            node[1]["I"][0] += newlyInfected
+
+        # print ("newlyInfected",newlyInfected)
+        # print ("currentlyInfected",node[1]["I"])
+        # print ("currentlyRecovered",node[1]["R"])
+
+
+def infectCity(input_network, iataCode):
+    for node in input_network.nodes_iter(input_network):
+        if node[1]["IATA"] == iataCode:
+            node[1]["S"] -= 1
+            node[1]["I"].append((111,1))
+            node[1]["I"][0] += 1
+
+            #print("infected",node[1]["I"])
+
+
+
+
+
+
+
+
+def visualize(network):
+    print("-- Starting to Visualize --")
+
+    m = Basemap(
+        projection='merc',
+        ellps='WGS84',
+        llcrnrlat=15, urcrnrlat=50,
+        llcrnrlon=-160, urcrnrlon=-60,
+        resolution="l"
+        )
+
+    pos = dict()
+
+    for pos_node in network.nodes():
+        # Normalize the lat and lon values
+        x,y = m(float(network.node[pos_node]['lon']),
+                float(network.node[pos_node]['lat']))
+
+        pos[pos_node] = [x,y]
+
+    #m.drawmapboundary("aqua")
+    #m.fillcontinents("#555555")
+    m.bluemarble()
+
+    # First pass - Green lines
+    nx.draw_networkx_edges(network,pos,edgelist=network.edges(),
+            width=1,
+            edge_color="green",
+            alpha=0.5,
+            arrows=False)
+
+    nx.draw_networkx_nodes(network,
+            pos,
+            linewidths=1,
+            node_size=10,
+            with_labels=False,
+            node_color = "green")
+
+    #m.bluemarble()
+    #plt.title=title
+
+    # Adjust the plot limits
+    cut = 1.05
+    xmax = cut * max(xx for xx,yy in pos.values())
+    xmin =  min(xx for xx,yy in pos.values())
+    xmin = xmin - (cut * xmin)
+
+
+    ymax = cut * max(yy for xx,yy in pos.values())
+    ymin = (cut) * min(yy for xx,yy in pos.values())
+    ymin = ymin - (cut * ymin)
+
+    plt.xlim(xmin,xmax)
+    plt.ylim(ymin,ymax)
+
+    plt.axis('off')
+    plt.show()
+    plt.close()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     #nx.draw(network, pos)
     #plt.savefig("hello.png")
@@ -332,7 +545,7 @@ def simulation_data(network, time, targets, seed):
 
     data_file.close()
 
-def create_network(nodes, edges):
+def create_network2(nodes, edges):
     """
     Create a NetworkX graph object using the airport and route databases.
 
@@ -361,15 +574,21 @@ def create_network(nodes, edges):
                        IATA=entries[2],
                        lat=entries[3],
                        lon=entries[4],
-                       pop=entries[5],
-                       pos=(float(entries[3]),float(entries[4])))
+                       #pop=entries[5],
+                       pos=(float(entries[3]),float(entries[4])),
+                       I=[0],
+                       S=int(entries[5]),       #createHumans(int(entries[5])),
+                       V=0,
+                       R=0
+                       )
             # G.add_node(int(entries[0]),
             #            country=entries[3],
             #            name=entries[1],
             #            lat=entries[6],
             #            lon=entries[7])
 
-
+    #for node in G.nodes_iter(G):
+    #    print (len(node[1]["S"]))
     print("\t\t\t\t\t[Done]")
     
     print("\tLoading routes",end="")
@@ -522,7 +741,12 @@ def calculate_weights(input_network):
 
     return G
 
-def infection(input_network, vaccination, starts,DELAY=0, vis = False, 
+
+
+
+
+
+def infection2(input_network, vaccination, starts,DELAY=0, vis = False,
               file_name = "sir.csv", title="",  RECALCULATE = True):
     """
     Simulate an infection within network, generated using seed, and with the
@@ -679,67 +903,7 @@ def infection(input_network, vaccination, starts,DELAY=0, vis = False,
     return {"Suscceptable":S,"Infected":I, "Recovered":R}
 
 
-def visualize(network):
-    print("-- Starting to Visualize --")
 
-    m = Basemap(
-        #projection='cea',
-        #width=10000000,
-        #height=4000000,
-        projection='merc',
-        ellps='WGS84',
-        llcrnrlat=15, urcrnrlat=50,
-        llcrnrlon=-160, urcrnrlon=-60,
-        resolution="l"
-        )
-
-    pos = dict()
-
-    for pos_node in network.nodes():
-        # Normalize the lat and lon values
-        x,y = m(float(network.node[pos_node]['lon']),
-                float(network.node[pos_node]['lat']))
-
-        pos[pos_node] = [x,y]
-
-    #m.drawmapboundary("aqua")
-    #m.fillcontinents("#555555")
-    m.bluemarble()
-
-    # First pass - Green lines
-    nx.draw_networkx_edges(network,pos,edgelist=network.edges(),
-            width=1,
-            edge_color="green",
-            alpha=0.5,
-            arrows=False)
-
-    nx.draw_networkx_nodes(network,
-            pos,
-            linewidths=1,
-            node_size=10,
-            with_labels=False,
-            node_color = "green")
-
-    #m.bluemarble()
-    #plt.title=title
-
-    # Adjust the plot limits
-    cut = 1.05
-    xmax = cut * max(xx for xx,yy in pos.values())
-    xmin =  min(xx for xx,yy in pos.values())
-    xmin = xmin - (cut * xmin)
-
-
-    ymax = cut * max(yy for xx,yy in pos.values())
-    ymin = (cut) * min(yy for xx,yy in pos.values())
-    ymin = ymin - (cut * ymin)
-
-    plt.xlim(xmin,xmax)
-    plt.ylim(ymin,ymax)
-
-    plt.axis('off')
-    plt.show()
-    plt.close()
 
 
 
