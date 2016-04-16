@@ -46,8 +46,10 @@ from mpl_toolkits.basemap import Basemap
 import queue
 
 
-
-global VISUALIZE
+# GLOBAL
+VISUALIZE = False
+TAU       = 4      # Zika virus "Ro"
+routeInfo = dict()
 
 def main():
     """
@@ -108,10 +110,14 @@ def main():
 
     # Create the network using the command arguments.
     network = create_network(AIRPORT_DATA, ROUTE_DATA)
-  
+    #print (routeInfo)
+
     # Generate target-selection weights, and choose target vertices to infect.
     # Dict of node id with degrees per node
     degrees = network.degree()
+    #print (degrees)
+    #for node in network.nodes_iter(network):
+        #print(node)
 
     #pos = nx.get_node_attributes(network,'pos')
     # print (pos)
@@ -120,9 +126,9 @@ def main():
     #visualize(network, "", position)
 
 
-    infectCity(network, "ATL")
-    for i in range(111,150):
-        infection(network, i)
+    #infectCity(network, "ATL", 120)
+    #for i in range(111,150):
+    #    infection(network, i)
 
     visualize(network)
 
@@ -142,12 +148,14 @@ def create_network(nodes, edges):
            by the data files from the arguments.
 
     """
+    global routeInfo
 
     print("Creating network.")
-    G = nx.DiGraph()
+    G = nx.Graph()
 
     print("\tLoading airports", end="")
     sys.stdout.flush()
+
     # Populate the graph with nodes.
     with open(nodes, 'r', encoding='utf-8') as f:
         for line in f.readlines():
@@ -166,12 +174,11 @@ def create_network(nodes, edges):
                        R=0
                        )
 
-    #for node in G.nodes_iter(G):
-    #    print (len(node[1]["S"]))
     print("\t\t\t\t\t[Done]")
 
     print("\tLoading routes",end="")
     sys.stdout.flush()
+
     # Populate the graph with edges.
     edge_count = 0
     error_count = 0
@@ -181,9 +188,10 @@ def create_network(nodes, edges):
 
         for line in f.readlines():
             entries = line.replace('"',"").rstrip().split(",")
+            routeInfo[(entries[0],entries[2])] = float(entries[4])
             try:
-                # if G.has_edge(int(entries[3]),int(entries[5])):
-                if G.has_edge(int(entries[1]),int(entries[3])):
+                if G.has_edge(int(entries[1]),int(entries[3])) or \
+                    G.has_edge(int(entries[3]),int(entries[1])):
                     duplicate_count += 1
                 else:
                     if line_num > 1:
@@ -204,9 +212,9 @@ def create_network(nodes, edges):
 
 
     # Calculate the edge weights
-    print("\tCalculating edge weights",end="")
-    G = calculate_weights(G)
-    print("\t\t\t\t[Done]")
+    # print("\tCalculating edge weights",end="")
+    # G = calculate_weights(G)
+    # print("\t\t\t\t[Done]")
 
     # Add clustering data
     print("\tCalculating clustering coefficents",end="")
@@ -227,20 +235,19 @@ def create_network(nodes, edges):
 def infection(input_network, timeStep):
 
     mosCurve = [0,0,0,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0] # phx, # TODO - REMOVE
-    tau = 4 # Zika Virus "Ro"
-    #print ("timeStep",timeStep)
     approxMonth = timeStep // 30
 
     for node in input_network.nodes_iter(input_network):
         #if node[1]["IATA"] == "ATL":
+
         # Check for recovery
         if node[1]["I"][0] > 0:
             if timeStep - node[1]["I"][1][0] >= 7:
                 group = node[1]["I"].pop(1)
                 node[1]["I"][0] -= group[1]
 
-        # Infect
-        newlyInfected = min(math.ceil(tau * mosCurve[approxMonth] *
+        # Infect cities
+        newlyInfected = min(math.ceil(TAU * mosCurve[approxMonth] *
                         node[1]["I"][0]), node[1]["S"])
         if newlyInfected > 0:
             node[1]["S"] -= newlyInfected
@@ -252,11 +259,11 @@ def infection(input_network, timeStep):
         # print ("currentlyRecovered",node[1]["R"])
 
 
-def infectCity(input_network, iataCode):
+def infectCity(input_network, iataCode, timeStep):
     for node in input_network.nodes_iter(input_network):
         if node[1]["IATA"] == iataCode:
             node[1]["S"] -= 1
-            node[1]["I"].append((111,1))
+            node[1]["I"].append((timeStep,1))
             node[1]["I"][0] += 1
 
             #print("infected",node[1]["I"])
