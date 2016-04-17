@@ -47,9 +47,22 @@ import queue
 
 
 # GLOBAL
-VISUALIZE = False
+MAP = False
 TAU       = 4      # Zika virus "Ro"
 routeInfo = dict()
+approvedAirports = dict()
+airportsToInfect = dict()
+I = dict()
+S = dict()
+V = dict()
+R = dict()
+T = list()
+CITY_TO_INFECT = "ATL"
+DATE_TO_INFECT = 1
+RANGE_BEGIN = 1
+RANGE_END   = 365
+STAT = False
+
 
 def main():
     """
@@ -63,17 +76,12 @@ def main():
         Void
 
     """
-
-    # Flag defaults
-    VISUALIZE = False
-    # INTERNATIONAL = False
-    # DOMESTIC = False
-    DELAY = 0
-    NUM_SIMULATIONS = 100
+    global MAP, CITY_TO_INFECT, RANGE_BEGIN, RANGE_END, DATE_TO_INFECT, STAT, T
 
     # Determine the parameters of the current simulation.
-    opts, args = getopt.getopt(sys.argv[1:], "brcsidv", ["delay=",
-                                                         "nsim="]
+    opts, args = getopt.getopt(sys.argv[1:], "ms", ["c=", "d=", "r1=", "r2="]
+                               #"brcsidv", ["delay=",
+                                             # "nsim="]
                                                             )
 
     # Check if the data arguments are available
@@ -81,56 +89,65 @@ def main():
         print(__doc__)
         exit()
 
-
     AIRPORT_DATA = args[0]
     ROUTE_DATA = args[1]
 
     simulations = list()
 
-    for o, a in opts:
-        if o == "-b":
-            simulations.append("betweenness")
-        elif o == "-r":
-            simulations.append("random")
-        elif o == "-s":
-            simulations.append("sir")
-        elif o == "-c":
-            simulations.append("clustering")
-        elif o == "-v":
-            VISUALIZE = True
-        elif o == "-y":
-            RECALCULATE = False
-        elif o == "--delay":
-            DELAY = int(a)
-        elif o == "--nsim":
-            NUM_SIMULATIONS = int(a)
+    for opt, par in opts:
+        # map of network
+        if opt == "-m":
+            MAP = True
+        # stats on infection city
+        elif opt == "-s":
+            STAT = True
+        # infect a particular city
+        elif opt == "--c":
+            CITY_TO_INFECT = par
+        # date to infect
+        elif opt == "--d":
+            DATE_TO_INFECT = int(par)
+        # Beginning part of simulation
+        elif opt == "--r1":
+            RANGE_BEGIN = int(par)
+        # Ending part of simulation
+        elif opt == "--r2":
+            RANGE_END = int(par)
 
-    seed = 100
-    random.seed(seed)
 
-    # Create the network using the command arguments.
+    # Create the network using the command arguments
     network = create_network(AIRPORT_DATA, ROUTE_DATA)
-    #print (routeInfo)
 
-    # Generate target-selection weights, and choose target vertices to infect.
-    # Dict of node id with degrees per node
-    degrees = network.degree()
-    #print (degrees)
-    #for node in network.nodes_iter(network):
-        #print(node)
+    # Setup Global SIVR stat tracker
+    setupGlobalSIVR()
 
-    #pos = nx.get_node_attributes(network,'pos')
-    # print (pos)
+    # Run infection simulation
+    for i in range(RANGE_BEGIN,RANGE_END):
+        T.append(i)
+        infection(network, i)
 
-    #position = nx.spring_layout(network, scale=2)
-    #visualize(network, "", position)
+    # Visualize network
+    if MAP:
+        visualize(network)
+
+    # Stats of beginning infection
+    if STAT:
+        for node in I:
+            if node == CITY_TO_INFECT:
+
+                i, = plt.plot(T, I[node],label="I")
+                s, = plt.plot(T, S[node],label='S')
+                r, = plt.plot(T, R[node],label='R')
+                plt.legend(handles=[i,s,r])
+
+        plt.title(CITY_TO_INFECT + " Infection Dynamics")
+        plt.xlabel('Days of Year')
+        plt.ylabel('People')
+        plt.xlim(RANGE_BEGIN,RANGE_END)
+        plt.show()
 
 
-    #infectCity(network, "ATL", 120)
-    #for i in range(111,150):
-    #    infection(network, i)
 
-    visualize(network)
 
 
 
@@ -149,6 +166,7 @@ def create_network(nodes, edges):
 
     """
     global routeInfo
+    global approvedAirports
 
     print("Creating network.")
     G = nx.Graph()
@@ -166,9 +184,10 @@ def create_network(nodes, edges):
                        IATA=entries[2],
                        lat=entries[3],
                        lon=entries[4],
-                       #pop=entries[5],
+                       pop=int(entries[5]),
                        pos=(float(entries[3]),float(entries[4])),
                        I=[0],
+                       Iair=0, # TODO - Maybe look at transferring humans TO OTHER CITIES
                        S=int(entries[5]),       #createHumans(int(entries[5])),
                        V=0,
                        R=0
@@ -188,7 +207,9 @@ def create_network(nodes, edges):
 
         for line in f.readlines():
             entries = line.replace('"',"").rstrip().split(",")
-            routeInfo[(entries[0],entries[2])] = float(entries[4])
+            routeInfo[(entries[0],entries[1],entries[2],entries[3])] = \
+                float(entries[4])
+            approvedAirports[entries[0]] = int(entries[1])
             try:
                 if G.has_edge(int(entries[1]),int(entries[3])) or \
                     G.has_edge(int(entries[3]),int(entries[1])):
@@ -233,44 +254,79 @@ def create_network(nodes, edges):
 
 
 def infection(input_network, timeStep):
+    global I,S,V,R
+    mosCurve = [0,0,0,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0] # phx, # TODO - REMOVE ONCE CURVERS ARE DONE
+    approxMonth = timeStep // 31
 
-    mosCurve = [0,0,0,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0] # phx, # TODO - REMOVE
-    approxMonth = timeStep // 30
 
+    # Spread disease to other Airports
+    currentNodes = input_network.node
+    for node in input_network.nodes_iter(input_network):
+        for key in routeInfo:
+            if node[1]["IATA"] == key[2]:
+                nodeDetails = currentNodes[int(key[1])]
+
+                node[1]["Iair"] += int(nodeDetails["I"][0] / \
+                                   nodeDetails["pop"] * \
+                                   routeInfo[key] / 365)
+
+
+    #print (input_network.node)
+
+    # Infection simulation at hubs
     for node in input_network.nodes_iter(input_network):
         #if node[1]["IATA"] == "ATL":
+        #    print(node[1]["I"])
+        #  Record stats
+        I[node[1]["IATA"]].append(node[1]["I"][0])
+        S[node[1]["IATA"]].append(node[1]["S"])
+        V[node[1]["IATA"]].append(node[1]["V"])
+        R[node[1]["IATA"]].append(node[1]["R"])
 
         # Check for recovery
         if node[1]["I"][0] > 0:
             if timeStep - node[1]["I"][1][0] >= 7:
                 group = node[1]["I"].pop(1)
                 node[1]["I"][0] -= group[1]
+                node[1]["R"]    += group[1]
 
         # Infect cities
+        if timeStep == DATE_TO_INFECT and node[1]["IATA"] == CITY_TO_INFECT:
+            infectCity(input_network)
+
         newlyInfected = min(math.ceil(TAU * mosCurve[approxMonth] *
-                        node[1]["I"][0]), node[1]["S"])
+                            (node[1]["I"][0] + node[1]["Iair"])),
+                            node[1]["S"])
         if newlyInfected > 0:
             node[1]["S"] -= newlyInfected
             node[1]["I"].append((timeStep,newlyInfected))
             node[1]["I"][0] += newlyInfected
+
+        # Remove temporary airport visitors
+        node[1]["Iair"] = 0
 
         # print ("newlyInfected",newlyInfected)
         # print ("currentlyInfected",node[1]["I"])
         # print ("currentlyRecovered",node[1]["R"])
 
 
-def infectCity(input_network, iataCode, timeStep):
+def infectCity(input_network):
     for node in input_network.nodes_iter(input_network):
-        if node[1]["IATA"] == iataCode:
+        if node[1]["IATA"] == CITY_TO_INFECT:
             node[1]["S"] -= 1
-            node[1]["I"].append((timeStep,1))
+            node[1]["I"].append((DATE_TO_INFECT,1))
             node[1]["I"][0] += 1
 
             #print("infected",node[1]["I"])
 
+def setupGlobalSIVR():
+    global I,S,V,R
 
-
-
+    for airport in approvedAirports:
+        I[airport] = list()
+        S[airport] = list()
+        V[airport] = list()
+        R[airport] = list()
 
 
 
@@ -281,8 +337,7 @@ def visualize(network):
     m = Basemap(
         projection='merc',
         ellps='WGS84',
-        llcrnrlat=15, urcrnrlat=50,
-        llcrnrlon=-160, urcrnrlon=-60,
+        llcrnrlon=-160,urcrnrlon=-60,llcrnrlat=10,urcrnrlat=80,
         resolution="l"
         )
 
@@ -296,8 +351,9 @@ def visualize(network):
         pos[pos_node] = [x,y]
 
     #m.drawmapboundary("aqua")
-    #m.fillcontinents("#555555")
-    m.bluemarble()
+    #m.fillcontinents('#555555')
+    m.drawlsmask(land_color='coral',ocean_color='aqua',lakes=True)
+    #m.bluemarble()
 
     # First pass - Green lines
     nx.draw_networkx_edges(network,pos,edgelist=network.edges(),
@@ -337,12 +393,35 @@ def visualize(network):
 
 
 
+    #seed = 100
+    #random.seed(seed)
+
+        # if o == "-b":
+        #     simulations.append("betweenness")
+        # elif o == "-r":
+        #     simulations.append("random")
+        # elif o == "-s":
+        #     simulations.append("sir")
+        # elif o == "-c":
+        #     simulations.append("clustering")
+        # elif o == "-v":
+        #     VISUALIZE = True
+        # elif o == "-y":
+        #     RECALCULATE = False
+        # elif o == "--delay":
+        #     DELAY = int(a)
+        # elif o == "--nsim":
+        #     NUM_SIMULATIONS = int(a)
 
 
 
 
+    # Generate target-selection weights, and choose target vertices to infect.
+    # Dict of node id with degrees per node
+    # degrees = network.degree()
 
-
+    #pos = nx.get_node_attributes(network,'pos')
+    # print (pos)
 
 
 
