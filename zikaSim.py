@@ -1,35 +1,36 @@
 #!/usr/bin/python3
 """
-simulator.py is a simulator for an example infection spreading across a 
-network between airports/hubs (nodes) via air travel routes and roads (edges).
-The goal of this simulation is to model the Zika infection spread and
+zikaSim.py is simulator for infection spreading by air travel and at major
+metro areas.  The goal of this simulation is to model the Zika infection spread and
 different experiments
 
 # test edge-based quarantine strategies for the given network.
 
 Usage:
-
-    simulator.py -brcsidv [--delay=<days>] [--nsim=<n>]
-        <airport database> <route database>
+    simulator.py -ms [c=<IATA>] [d=<start infection data]
+        [r1=<start simulation>] [r2=<end simulation>]
+        <airport database> <route database> <mosquito curves database>
 
 Flags:
-    -b: Run a betweenness-based quarantine simulation.
-    -r: Run a random quarantine simulation.
-    -c: Run a simulation based on vertex clustering coefficent.
-    -s: Run a naive simulation and output the SIR data.
-    -i: Filter to only quarantine international flights.
-    -d: Filter to only quarantine domestic flights.
-    -v: Visualize the network by plotting each time step.
+    -m: Show map of infection
+    -s: Stats on infection at starting city
 
 Option:
-    --delay=<days>  The number of days to delay a cancellation strategy.
-    --nsim=<n>      The number of simulations to perform per strategy.
+    --c         The IATA code for hub
+    --d         Start day of infection
+    --r1        Start of simulation
+    --r2        End of simulation
 """
 
 # Title:  zikaSim.py
 # Updated Authors: Tilak Patel and Derrick Williams
 # Original Authors: Nicholas A. Yager and Matthew Taylor
 # Date:   2016-04-12
+
+# python zikaSim.py -s --c ATL --d 125 --r1 120 --r2 180 ./Data/airportsMin.csv ./Data/airlineRoutesPassengerData.csv ./Data/mosCurves.csv
+
+
+
 
 import copy
 import getopt
@@ -79,20 +80,18 @@ def main():
     global MAP, CITY_TO_INFECT, RANGE_BEGIN, RANGE_END, DATE_TO_INFECT, STAT, T
 
     # Determine the parameters of the current simulation.
-    opts, args = getopt.getopt(sys.argv[1:], "ms", ["c=", "d=", "r1=", "r2="]
-                               #"brcsidv", ["delay=",
-                                             # "nsim="]
-                                                            )
+    opts, args = getopt.getopt(sys.argv[1:], "ms", ["c=", "d=", "r1=", "r2="])
 
     # Check if the data arguments are available
-    if len(args) < 2:
+    if len(args) < 3:
         print(__doc__)
         exit()
 
     AIRPORT_DATA = args[0]
     ROUTE_DATA = args[1]
+    MOSQUITO_CURVES = args[2]
 
-    simulations = list()
+    # simulations = list()
 
     for opt, par in opts:
         # map of network
@@ -116,7 +115,8 @@ def main():
 
 
     # Create the network using the command arguments
-    network = create_network(AIRPORT_DATA, ROUTE_DATA)
+    network = create_network(AIRPORT_DATA, ROUTE_DATA, MOSQUITO_CURVES)
+    # print(network.nodes(network))
 
     # Setup Global SIVR stat tracker
     setupGlobalSIVR()
@@ -130,7 +130,7 @@ def main():
     if MAP:
         visualize(network)
 
-    # Stats of beginning infection
+    # Stats of infection
     if STAT:
         for node in I:
             if node == CITY_TO_INFECT:
@@ -152,16 +152,17 @@ def main():
 
 
 
-def create_network(nodes, edges):
+def create_network(nodes, edges, curves):
     """
     Create a NetworkX graph object using the airport and route databases.
 
     Args:
         nodes: The file path to the nodes .csv file.
         edeges: The file path to the edges .csv file.
+        curves: The file path to the mosquito curves .csv file.
 
     Returns:
-        G: A NetworkX DiGraph object populated with the nodes and edges assigned
+        G: A NetworkX Graph object populated with the nodes and edges assigned
            by the data files from the arguments.
 
     """
@@ -173,6 +174,15 @@ def create_network(nodes, edges):
 
     print("\tLoading airports", end="")
     sys.stdout.flush()
+
+    # Load mosquito curves
+    mosquitoCurves = dict()
+    with open(curves, 'r', encoding='utf-8') as f:
+        for line in f.readlines():
+            entries = line.split(",")
+            for i in range(2,14):
+                entries[i] = float(entries[i])
+            mosquitoCurves[entries[1]] = entries[2:14]
 
     # Populate the graph with nodes.
     with open(nodes, 'r', encoding='utf-8') as f:
@@ -190,7 +200,8 @@ def create_network(nodes, edges):
                        Iair=0, # TODO - Maybe look at transferring humans TO OTHER CITIES
                        S=int(entries[5]),       #createHumans(int(entries[5])),
                        V=0,
-                       R=0
+                       R=0,
+                       MOS=mosquitoCurves[entries[2]]
                        )
 
     print("\t\t\t\t\t[Done]")
@@ -255,7 +266,7 @@ def create_network(nodes, edges):
 
 def infection(input_network, timeStep):
     global I,S,V,R
-    mosCurve = [0,0,0,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0] # phx, # TODO - REMOVE ONCE CURVERS ARE DONE
+    # mosCurve = [0,0,0,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0] # phx,
     approxMonth = timeStep // 31
 
 
@@ -294,7 +305,7 @@ def infection(input_network, timeStep):
         if timeStep == DATE_TO_INFECT and node[1]["IATA"] == CITY_TO_INFECT:
             infectCity(input_network)
 
-        newlyInfected = min(math.ceil(TAU * mosCurve[approxMonth] *
+        newlyInfected = min(math.ceil(TAU * node[1]["MOS"][approxMonth] *
                             (node[1]["I"][0] + node[1]["Iair"])),
                             node[1]["S"])
         if newlyInfected > 0:
