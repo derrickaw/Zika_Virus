@@ -20,6 +20,7 @@ Option:
     --d         Start day of infection
     --r1        Start of simulation
     --r2        End of simulation
+    --t         Ro - Reproduction number for particular virus
 """
 
 # Title:  zikaSim.py
@@ -28,7 +29,7 @@ Option:
 # Date:   2016-04-12
 
 # python zikaSim.py -s --c ATL --d 125 --r1 120 --r2 180 ./Data/airportsMin.csv ./Data/airlineRoutesPassengerData.csv ./Data/mosCurves.csv
-
+# python zikaSim.py -s --d 125 --r1 120 --r2 365 --t 4 ./Data/airportsMin.csv ./Data/airlineRoutesPassengerData.csv ./Data/mosCurves.csv
 
 
 
@@ -49,7 +50,7 @@ import queue
 
 # GLOBAL
 MAP = False
-TAU       = 4      # Zika virus "Ro"
+TAU       = 4      # Zika virus "Ro", DEFAULT
 routeInfo = dict()
 approvedAirports = dict()
 airportsToInfect = dict()
@@ -57,7 +58,7 @@ I = dict()
 S = dict()
 V = dict()
 R = dict()
-T = list()
+timeStepsTracker = list()
 CITY_TO_INFECT = "ATL"
 DATE_TO_INFECT = 1
 RANGE_BEGIN = 1
@@ -77,10 +78,12 @@ def main():
         Void
 
     """
-    global MAP, CITY_TO_INFECT, RANGE_BEGIN, RANGE_END, DATE_TO_INFECT, STAT, T
+    global MAP, CITY_TO_INFECT, RANGE_BEGIN, RANGE_END, DATE_TO_INFECT, STAT,TAU
+    global timeStepsTracker
 
     # Determine the parameters of the current simulation.
-    opts, args = getopt.getopt(sys.argv[1:], "ms", ["c=", "d=", "r1=", "r2="])
+    opts, args = getopt.getopt(sys.argv[1:], "ms", ["c=", "d=", "r1=", "r2=",
+                                                    "t="])
 
     # Check if the data arguments are available
     if len(args) < 3:
@@ -112,6 +115,9 @@ def main():
         # Ending part of simulation
         elif opt == "--r2":
             RANGE_END = int(par)
+        # A different tau for mosquito dynamics
+        elif opt == "--t":
+            TAU = float(par)
 
 
     # Create the network using the command arguments
@@ -123,7 +129,7 @@ def main():
 
     # Run infection simulation
     for i in range(RANGE_BEGIN,RANGE_END):
-        T.append(i)
+        timeStepsTracker.append(i)
         infection(network, i)
 
     # Visualize network
@@ -135,9 +141,9 @@ def main():
         for node in I:
             if node == CITY_TO_INFECT:
 
-                i, = plt.plot(T, I[node],label="I")
-                s, = plt.plot(T, S[node],label='S')
-                r, = plt.plot(T, R[node],label='R')
+                i, = plt.plot(timeStepsTracker, I[node],label="I")
+                s, = plt.plot(timeStepsTracker, S[node],label='S')
+                r, = plt.plot(timeStepsTracker, R[node],label='R')
                 plt.legend(handles=[i,s,r])
 
         plt.title(CITY_TO_INFECT + " Infection Dynamics")
@@ -196,8 +202,8 @@ def create_network(nodes, edges, curves):
                        lon=entries[4],
                        pop=int(entries[5]),
                        pos=(float(entries[3]),float(entries[4])),
-                       I=[0],
-                       Iair=0, # TODO - Maybe look at transferring humans TO OTHER CITIES
+                       I=[0,0],  # First num - Total I, second num new I
+                       Iair=0,
                        S=int(entries[5]),       #createHumans(int(entries[5])),
                        V=0,
                        R=0,
@@ -277,7 +283,7 @@ def infection(input_network, timeStep):
             if node[1]["IATA"] == key[2]:
                 nodeDetails = currentNodes[int(key[1])]
 
-                node[1]["Iair"] += int(nodeDetails["I"][0] / \
+                node[1]["Iair"] += int(nodeDetails["I"][1] / \
                                    nodeDetails["pop"] * \
                                    routeInfo[key] / 365)
 
@@ -296,8 +302,8 @@ def infection(input_network, timeStep):
 
         # Check for recovery
         if node[1]["I"][0] > 0:
-            if timeStep - node[1]["I"][1][0] >= 7:
-                group = node[1]["I"].pop(1)
+            if timeStep - node[1]["I"][2][0] >= 7:
+                group = node[1]["I"].pop(2)
                 node[1]["I"][0] -= group[1]
                 node[1]["R"]    += group[1]
 
@@ -306,12 +312,18 @@ def infection(input_network, timeStep):
             infectCity(input_network)
 
         newlyInfected = min(math.ceil(TAU * node[1]["MOS"][approxMonth] *
-                            (node[1]["I"][0] + node[1]["Iair"])),
-                            node[1]["S"])
+                            (node[1]["I"][1] +
+                              node[1]["Iair"])),node[1]["S"])
+
+        # if node[1]["IATA"] == "ATL":
+        #     print (min(math.ceil(TAU * node[1]["MOS"][approxMonth] *
+        #                     (node[1]["I"][1] + node[1]["Iair"])),
+        #                     node[1]["S"]))
         if newlyInfected > 0:
             node[1]["S"] -= newlyInfected
             node[1]["I"].append((timeStep,newlyInfected))
             node[1]["I"][0] += newlyInfected
+            node[1]["I"][1] = newlyInfected
 
         # Remove temporary airport visitors
         node[1]["Iair"] = 0
@@ -327,6 +339,7 @@ def infectCity(input_network):
             node[1]["S"] -= 1
             node[1]["I"].append((DATE_TO_INFECT,1))
             node[1]["I"][0] += 1
+            node[1]["I"][1] += 1
 
             #print("infected",node[1]["I"])
 
