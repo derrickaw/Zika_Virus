@@ -64,6 +64,8 @@ DATE_TO_INFECT = 1
 RANGE_BEGIN = 1
 RANGE_END   = 365
 STAT = False
+INCUBATION = 1
+TO_RECOVER = 7
 
 
 def main():
@@ -79,11 +81,11 @@ def main():
 
     """
     global MAP, CITY_TO_INFECT, RANGE_BEGIN, RANGE_END, DATE_TO_INFECT, STAT,TAU
-    global timeStepsTracker
+    global timeStepsTracker, INCUBATION
 
     # Determine the parameters of the current simulation.
     opts, args = getopt.getopt(sys.argv[1:], "ms", ["c=", "d=", "r1=", "r2=",
-                                                    "t="])
+                                                    "t=", "i="])
 
     # Check if the data arguments are available
     if len(args) < 3:
@@ -118,6 +120,10 @@ def main():
         # A different tau for mosquito dynamics
         elif opt == "--t":
             TAU = float(par)
+        # Set the incubation period before symptoms show and the infected
+        # person can propagate the disease
+        elif opt == "--i":
+            INCUBATION = float(par)
 
 
     # Create the network using the command arguments
@@ -129,8 +135,11 @@ def main():
 
     # Run infection simulation
     for i in range(RANGE_BEGIN,RANGE_END):
-        timeStepsTracker.append(i)
-        infection(network, i)
+        if i % INCUBATION == 0 or i == DATE_TO_INFECT:
+            timeStepsTracker.append(i)
+            infection(network, i)
+
+    print (I["ATL"])
 
     # Visualize network
     if MAP:
@@ -292,8 +301,9 @@ def infection(input_network, timeStep):
 
     # Infection simulation at hubs
     for node in input_network.nodes_iter(input_network):
-        #if node[1]["IATA"] == "ATL":
-        #    print(node[1]["I"])
+        # if node[1]["IATA"] == "ATL":
+        #     print(node[1]["I"])
+
         #  Record stats
         I[node[1]["IATA"]].append(node[1]["I"][0])
         S[node[1]["IATA"]].append(node[1]["S"])
@@ -302,7 +312,7 @@ def infection(input_network, timeStep):
 
         # Check for recovery
         if node[1]["I"][0] > 0:
-            if timeStep - node[1]["I"][2][0] >= 7:
+            if timeStep - node[1]["I"][2][0] >= (TO_RECOVER + INCUBATION):
                 group = node[1]["I"].pop(2)
                 node[1]["I"][0] -= group[1]
                 node[1]["R"]    += group[1]
