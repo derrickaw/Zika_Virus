@@ -66,7 +66,7 @@ RANGE_END   = 365
 STAT = False
 INCUBATION = 3  # 3-12 days , DEFAULT
 TO_RECOVER = 7  # DEFAULT
-
+RUN_ALL = False
 
 def main():
     """
@@ -81,10 +81,10 @@ def main():
 
     """
     global MAP, CITY_TO_INFECT, RANGE_BEGIN, RANGE_END, DATE_TO_INFECT, STAT,TAU
-    global timeStepsTracker, INCUBATION
+    global timeStepsTracker, INCUBATION, RUN_ALL
 
     # Determine the parameters of the current simulation.
-    opts, args = getopt.getopt(sys.argv[1:], "ms", ["c=", "d=", "r1=", "r2=",
+    opts, args = getopt.getopt(sys.argv[1:], "msa", ["c=", "d=", "r1=", "r2=",
                                                     "t=", "i="])
 
     # Check if the data arguments are available
@@ -105,6 +105,11 @@ def main():
         # stats on infection city
         elif opt == "-s":
             STAT = True
+        # Run all cities through infection for every month to find the worst
+        # set of city - infection month pairs for number of infections and
+        # number of nodes infected
+        elif opt == "-a":
+            RUN_ALL = True
         # infect a particular city
         elif opt == "--c":
             CITY_TO_INFECT = par
@@ -128,38 +133,74 @@ def main():
 
     # Create the network using the command arguments
     network = create_network(AIRPORT_DATA, ROUTE_DATA, MOSQUITO_CURVES)
-    # print(network.nodes(network))
 
     # Setup Global SIVR stat tracker
     setupGlobalSIVR()
 
-    # Run infection simulation
-    for i in range(RANGE_BEGIN,RANGE_END):
-        if i % INCUBATION == 0 or i == DATE_TO_INFECT:
-            timeStepsTracker.append(i)
-            infection(network, i)
+    infectionAllStats = dict()
 
-    print (I["ATL"])
+    # Entire network run
+    if RUN_ALL:
+        for airport in approvedAirports:
+            # if airport == "MIA":
+            CITY_TO_INFECT = airport
+            print (airport)
+            infectionAllStats[airport] = list()
+            for i in range(1,RANGE_END+1,31):
+                #print (i)
+                networkCopy = network.copy()
+                setupGlobalSIVR()
+                DATE_TO_INFECT = i
+                infectionAllStats[airport].append(0)
+                # Run infection simulation
+                for j in range(i,RANGE_END+1+i):
+                    j %= RANGE_END
+                    if j % INCUBATION == 0 or j == DATE_TO_INFECT:
+                        # timeStepsTracker.append(i)
+                        infection(networkCopy, j)
+                    # for node in networkCopy.nodes_iter(networkCopy):
+                    #     if node[1]["IATA"] == "MIA" and airport == "MIA":
+                    #         print (node)
+                for node in networkCopy.nodes_iter(networkCopy):
+                    # print (node[1]["R"])
+                    infectionAllStats[airport][-1] += node[1]["R"]
+                    #if airport == "MIA":
+                    #    print (network.nodes(networkCopy))
+                # print
 
-    # Visualize network
-    if MAP:
-        visualize(network)
+        print (infectionAllStats)
 
-    # Stats of infection
-    if STAT:
-        for node in I:
-            if node == CITY_TO_INFECT:
-
-                i, = plt.plot(timeStepsTracker, I[node],label="I")
-                s, = plt.plot(timeStepsTracker, S[node],label='S')
-                r, = plt.plot(timeStepsTracker, R[node],label='R')
-                plt.legend(handles=[i,s,r])
-
-        plt.title(CITY_TO_INFECT + " Infection Dynamics")
-        plt.xlabel('Days of Year')
-        plt.ylabel('People')
-        plt.xlim(RANGE_BEGIN,RANGE_END)
-        plt.show()
+    # else:
+    #     for i in range(RANGE_BEGIN,RANGE_END+DATE_TO_INFECT):
+    #         if i % INCUBATION == 0 or i == DATE_TO_INFECT:
+    #             timeStepsTracker.append(i)
+    #             infection(network, i)
+    #
+    # for airport in approvedAirports:
+    #     print (airport, I[airport])
+    #
+    #
+    #
+    #
+    # # Visualize network
+    # if MAP:
+    #     visualize(network)
+    #
+    # # Stats of infection
+    # if STAT:
+    #     for node in I:
+    #         if node == CITY_TO_INFECT:
+    #
+    #             i, = plt.plot(timeStepsTracker, I[node],label="I")
+    #             s, = plt.plot(timeStepsTracker, S[node],label='S')
+    #             r, = plt.plot(timeStepsTracker, R[node],label='R')
+    #             plt.legend(handles=[i,s,r])
+    #
+    #     plt.title(CITY_TO_INFECT + " Infection Dynamics")
+    #     plt.xlabel('Days of Year')
+    #     plt.ylabel('People')
+    #     plt.xlim(RANGE_BEGIN,RANGE_END)
+    #     plt.show()
 
 
 
@@ -264,13 +305,13 @@ def create_network(nodes, edges, curves):
     # print("\t\t\t\t[Done]")
 
     # Add clustering data
-    print("\tCalculating clustering coefficents",end="")
-    cluster_network = nx.Graph(G)
-    lcluster = nx.clustering(cluster_network)
-    for i,j in G.edges():
-        cluster_sum = lcluster[i] + lcluster[j]
-        G[i][j]['cluster'] = cluster_sum
-    print("\t\t\t[Done]")
+    # print("\tCalculating clustering coefficents",end="")
+    # cluster_network = nx.Graph(G)
+    # lcluster = nx.clustering(cluster_network)
+    # for i,j in G.edges():
+    #     cluster_sum = lcluster[i] + lcluster[j]
+    #     G[i][j]['cluster'] = cluster_sum
+    # print("\t\t\t[Done]")
 
     return G
 
@@ -282,7 +323,7 @@ def create_network(nodes, edges, curves):
 def infection(input_network, timeStep):
     global I,S,V,R
     # mosCurve = [0,0,0,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0] # phx,
-    approxMonth = timeStep // 31
+    approxMonth = timeStep // 31 % 12
 
 
     # Spread disease to other Airports
@@ -291,8 +332,12 @@ def infection(input_network, timeStep):
         for key in routeInfo:
             if node[1]["IATA"] == key[2]:
                 nodeDetails = currentNodes[int(key[1])]
+                # if node[1]["IATA"] == "ATL":
+                #     print (int(nodeDetails["I"][0] / \
+                #                        nodeDetails["pop"] * \
+                #                        routeInfo[key] / 365))
 
-                node[1]["Iair"] += int(nodeDetails["I"][1] / \
+                node[1]["Iair"] += int(nodeDetails["I"][0] / \
                                    nodeDetails["pop"] * \
                                    routeInfo[key] / 365)
 
@@ -301,8 +346,8 @@ def infection(input_network, timeStep):
 
     # Infection simulation at hubs
     for node in input_network.nodes_iter(input_network):
-        # if node[1]["IATA"] == "ATL":
-        #     print(node[1]["I"])
+        # if node[1]["IATA"] == "MIA":
+        #    print(node[1]["I"])
 
         #  Record stats
         I[node[1]["IATA"]].append(node[1]["I"][0])
@@ -310,12 +355,17 @@ def infection(input_network, timeStep):
         V[node[1]["IATA"]].append(node[1]["V"])
         R[node[1]["IATA"]].append(node[1]["R"])
 
+
         # Check for recovery
         if node[1]["I"][0] > 0:
             if timeStep - node[1]["I"][2][0] >= (TO_RECOVER + INCUBATION):
                 group = node[1]["I"].pop(2)
                 node[1]["I"][0] -= group[1]
                 node[1]["R"]    += group[1]
+                # If the recovered amount leaving matches the last one, then
+                # clear
+                if group[1] == node[1]["I"][1]:
+                    node[1]["I"][1] = 0
 
         # Infect cities
         if timeStep == DATE_TO_INFECT and node[1]["IATA"] == CITY_TO_INFECT:
@@ -324,6 +374,7 @@ def infection(input_network, timeStep):
         newlyInfected = min(math.ceil(TAU * node[1]["MOS"][approxMonth] *
                             (node[1]["I"][1] +
                               node[1]["Iair"])),node[1]["S"])
+
 
         # if node[1]["IATA"] == "ATL":
         #     print (min(math.ceil(TAU * node[1]["MOS"][approxMonth] *
