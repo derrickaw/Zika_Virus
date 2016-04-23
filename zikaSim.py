@@ -46,11 +46,13 @@ from scipy import stats
 import time
 from mpl_toolkits.basemap import Basemap
 import queue
+import matplotlib.animation as animation
+import numpy as np
 
 
 # GLOBAL
 MAP = False
-TAU       = 4      # Zika virus "Ro", DEFAULT
+TAU = 4      # Zika virus "Ro", DEFAULT
 routeInfo = dict()
 approvedAirports = dict()
 airportsToInfect = dict()
@@ -62,7 +64,8 @@ timeStepsTracker = list()
 CITY_TO_INFECT = "ATL"
 DATE_TO_INFECT = 1
 RANGE_BEGIN = 1
-RANGE_END   = 365
+RANGE_END = 365
+MONTH = 31
 STAT = False
 INCUBATION = 3  # 3-12 days , DEFAULT
 TO_RECOVER = 7  # DEFAULT
@@ -185,7 +188,7 @@ def main():
     # # Visualize network
     # if MAP:
     #     visualize(network)
-    #
+    #     updatedVisualize(network)
     # # Stats of infection
     # if STAT:
     #     for node in I:
@@ -412,6 +415,106 @@ def setupGlobalSIVR():
         S[airport] = list()
         V[airport] = list()
         R[airport] = list()
+
+
+
+def updateIDic(network):
+    updatedIDict = {}
+    popIDict = {}
+    for node in network.nodes_iter(network):
+        popIDict[node[1]["IATA"]] = [x / node[1]["pop"] for x in I[node[1]["IATA"]]]
+
+    print(popIDict)
+    arr = (np.linspace(0, len(popIDict[CITY_TO_INFECT]), math.ceil((RANGE_END-RANGE_BEGIN)/MONTH), endpoint=True, dtype=int))
+    arr[-1] -= 1
+    print(arr)
+    for key,value in popIDict.items():
+        updatedIDict[key] = [value[i] for i in arr]
+
+    return updatedIDict
+
+def getColor(value):
+    if value <= .333:
+        return "yellow"
+    elif value <= .667:
+        return "orange"
+    else:
+        return "red"
+
+def updatedVisualize(network):
+    print("-- Starting to Visualize --")
+
+    updatedIDic = updateIDic(network)
+    #print("UPDATED DIC", updatedIDic)
+
+    map = Basemap(
+        projection='merc',
+        ellps='WGS84',
+        llcrnrlon=-160,urcrnrlon=-60,llcrnrlat=10,urcrnrlat=80,
+        resolution="l"
+        )
+    #map.drawmapboundary("aqua")
+    #map.fillcontinents('#555555')
+    map.drawlsmask(land_color='green',ocean_color='aqua',lakes=True)
+    #map.bluemarble()
+
+    pos = dict()
+
+    for pos_node in network.nodes():
+        # Normalize the lat and lon values
+        x,y = map(float(network.node[pos_node]['lon']),
+                float(network.node[pos_node]['lat']))
+        print("x,y", x, y)
+        pos[pos_node] = [x,y]
+
+    #print("POS", network.nodes())
+    # First pass - edges
+    nx.draw_networkx_edges(network,pos,edgelist=network.edges(),
+            width=1,
+            edge_color="blue",
+            alpha=0.5,
+            arrows=False)
+
+    #Node/vertices colors
+    nx.draw_networkx_nodes(network,
+            pos,
+            linewidths=1,
+            node_size=30,
+            with_labels=False,
+            node_color = "white")
+
+
+    for pos_node in network.nodes():
+        # Normalize the lat and lon values
+        x,y = map(float(network.node[pos_node]['lon']),
+                float(network.node[pos_node]['lat']))
+        msize = math.ceil(network.node[pos_node]['pop'] * .00001)
+        mcolor = getColor(updatedIDic[network.node[pos_node]['IATA']][2])
+        print("MAP ATTR", x, y, mcolor, msize)
+        map.plot(x, y, mcolor, markersize=msize)
+        #print(updatedIDic[network.node[pos_node]['IATA']][2])
+    #x,y = map(9188777, 357932) # wrong x,y - does not work
+    #map.plot(x, y,"red", markersize=100)
+    x,y = map(-90, 38.78) #correct x,y that works
+    map.plot(x, y, 'ro', markersize=25)
+
+    #Adjust the plot limits
+    cut = 1.05
+    xmax = cut * max(xx for xx,yy in pos.values())
+    xmin =  min(xx for xx,yy in pos.values())
+    xmin = xmin - (cut * xmin)
+
+
+    ymax = cut * max(yy for xx,yy in pos.values())
+    ymin = (cut) * min(yy for xx,yy in pos.values())
+    ymin = ymin - (cut * ymin)
+
+    plt.xlim(xmin,xmax)
+    plt.ylim(ymin,ymax)
+
+    plt.axis('off')
+    plt.show()
+    plt.close()
 
 
 
