@@ -63,9 +63,10 @@ R = dict()
 timeStepsTracker = list()
 CITY_TO_INFECT = "ATL"
 DATE_TO_INFECT = 1
-RANGE_BEGIN = 1
-RANGE_END = 365
+START = 1
+DAYS_IN_YEAR = 365
 DAYS_IN_MONTH = 31
+SIMULATION_LENGTH = DAYS_IN_YEAR
 STAT = False
 INCUBATION = 3  # 3-12 days , DEFAULT
 TO_RECOVER = 7  # DEFAULT
@@ -85,12 +86,13 @@ def main():
         Void
 
     """
-    global MAP, CITY_TO_INFECT, RANGE_BEGIN, RANGE_END, DATE_TO_INFECT, STAT,TAU
-    global timeStepsTracker, INCUBATION, RUN_ALL, VACCINATE_PERC, VACCINATE
+    global MAP, CITY_TO_INFECT, START, SIMULATION_LENGTH, DATE_TO_INFECT, STAT, \
+        timeStepsTracker, INCUBATION, RUN_ALL, VACCINATE_PERC, VACCINATE, TAU
 
     # Determine the parameters of the current simulation.
-    opts, args = getopt.getopt(sys.argv[1:], "msav", ["c=", "d=", "r1=", "r2=",
-                                                    "t=", "i=", "v="])
+    opts, args = getopt.getopt(sys.argv[1:], "msav", ["c=", "d=", "start=",
+                                                       "days=","t=", "i=",
+                                                       "v="])
 
     # Check if the data arguments are available
     if len(args) < 3:
@@ -125,11 +127,11 @@ def main():
         elif opt == "--d":
             DATE_TO_INFECT = int(par)
         # Beginning part of simulation
-        elif opt == "--r1":
-            RANGE_BEGIN = int(par)
-        # Ending part of simulation
-        elif opt == "--r2":
-            RANGE_END = int(par)
+        elif opt == "--start":
+            START = int(par)
+        # Number of days to run simulation, if not entered, default is 365
+        elif opt == "--days":
+            SIMULATION_LENGTH = int(par)
         # A different tau for mosquito dynamics and preset vaccination rate
         # based on TAU, if user wants to change it, they must use the --v option
         elif opt == "--t":
@@ -159,15 +161,15 @@ def main():
             CITY_TO_INFECT = airport
             print (airport)
             infectionAllStats[airport] = list()
-            for i in range(1,RANGE_END+1,DAYS_IN_MONTH):
+            for i in range(1,START+SIMULATION_LENGTH+1,DAYS_IN_MONTH):
                 #print (i)
                 networkCopy = network.copy()
                 setupGlobalSIVR()
                 DATE_TO_INFECT = i
                 infectionAllStats[airport].append(0)
                 # Run infection simulation
-                for j in range(i,RANGE_END+1+i):
-                    j %= RANGE_END
+                for j in range(i,START+SIMULATION_LENGTH+1+i):
+                    j %= SIMULATION_LENGTH
                     if j % INCUBATION == 0 or j == DATE_TO_INFECT:
                         # timeStepsTracker.append(i)
                         infection(networkCopy, j)
@@ -183,7 +185,8 @@ def main():
         print (infectionAllStats)
 
     else:
-        for i in range(RANGE_BEGIN,RANGE_END+DATE_TO_INFECT):
+
+        for i in range(START,START+SIMULATION_LENGTH):
             if i % INCUBATION == 0 or i == DATE_TO_INFECT:
                 timeStepsTracker.append(i)
                 infection(network, i)
@@ -195,6 +198,8 @@ def main():
     # Print # of recovered per airport
     for airport in approvedAirports:
         print(airport, R[airport][-1])
+
+
 
 
     # Visualize network
@@ -209,16 +214,32 @@ def main():
                 i, = plt.plot(timeStepsTracker, I[node],label="I")
                 s, = plt.plot(timeStepsTracker, S[node],label='S')
                 r, = plt.plot(timeStepsTracker, R[node],label='R')
-                plt.legend(handles=[i,s,r])
+                v, = plt.plot(timeStepsTracker, V[node],label='V')
+                plt.legend(handles=[i,s,r,v], loc = 'best')
 
         plt.title(CITY_TO_INFECT + " Infection Dynamics")
         plt.xlabel('Days of Year')
         plt.ylabel('People')
-        plt.xlim(RANGE_BEGIN,RANGE_END)
+        plt.xlim(START,START+SIMULATION_LENGTH)
         plt.show()
 
 
-
+# def reorderStats():
+#     global timeStepsTracker, I, S, R, V
+#
+#     foundSpot = 0
+#     for i in range(1,len(timeStepsTracker)):
+#         if timeStepsTracker[i-1] > timeStepsTracker[i]:
+#             foundSpot = i
+#             break
+#         print(foundSpot)
+#     timeStepsTracker = timeStepsTracker[foundSpot:] + \
+#                        timeStepsTracker[:foundSpot]
+#     for airport in approvedAirports:
+#         I[airport] = I[airport][foundSpot:] + I[airport][:foundSpot]
+#         S[airport] = S[airport][foundSpot:] + S[airport][:foundSpot]
+#         R[airport] = R[airport][foundSpot:] + R[airport][:foundSpot]
+#         V[airport] = V[airport][foundSpot:] + V[airport][:foundSpot]
 
 
 
@@ -444,7 +465,7 @@ def updateIDic(network):
 
     print(popIDict)
     arr = (np.linspace(0, len(popIDict[CITY_TO_INFECT]),
-                       math.ceil((RANGE_END-RANGE_BEGIN)/DAYS_IN_MONTH),
+                       math.ceil((SIMULATION_LENGTH)/DAYS_IN_MONTH),
                        endpoint=True, dtype=int))
     arr[-1] -= 1
     print(arr)
