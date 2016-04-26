@@ -73,6 +73,7 @@ TO_RECOVER = 7  # DEFAULT
 RUN_ALL = False
 VACCINATE_PERC = 1 - (1/TAU) # DEFAULT
 VACCINATE = False
+SCREEN_PERC = 0
 
 def main():
     """
@@ -86,13 +87,14 @@ def main():
         Void
 
     """
-    global MAP, CITY_TO_INFECT, START, SIMULATION_LENGTH, DATE_TO_INFECT, STAT, \
-        timeStepsTracker, INCUBATION, RUN_ALL, VACCINATE_PERC, VACCINATE, TAU
+    global MAP, CITY_TO_INFECT, START, SIMULATION_LENGTH, DATE_TO_INFECT, STAT,\
+        timeStepsTracker, INCUBATION, RUN_ALL, VACCINATE_PERC, VACCINATE, TAU, \
+        SCREEN_PERC
 
     # Determine the parameters of the current simulation.
     opts, args = getopt.getopt(sys.argv[1:], "msav", ["c=", "d=", "start=",
-                                                       "days=","t=", "i=",
-                                                       "v="])
+                                                       "days=","tau=", "inc=",
+                                                       "vac=", "screen="])
 
     # Check if the data arguments are available
     if len(args) < 3:
@@ -134,17 +136,22 @@ def main():
             SIMULATION_LENGTH = int(par)
         # A different tau for mosquito dynamics and preset vaccination rate
         # based on TAU, if user wants to change it, they must use the --v option
-        elif opt == "--t":
+        elif opt == "--tau":
             TAU = float(par)
             VACCINATE_PERC = 1 - (1/TAU)
         # Set the incubation period before symptoms show and the infected
         # person can propagate the disease
-        elif opt == "--i":
+        elif opt == "--inc":
             INCUBATION = float(par)
         # Change vaccination percentage and set model to vaccinate
-        elif opt == "--v":
+        elif opt == "--vac":
             VACCINATE_PERC = float(par)
             VACCINATE = True
+        # Percent of passengers to screen from normal population proportion
+        # dynamics
+        elif opt == "--screen":
+            SCREEN_PERC = float(par)
+
 
     # Create the network using the command arguments
     network = create_network(AIRPORT_DATA, ROUTE_DATA, MOSQUITO_CURVES)
@@ -161,14 +168,14 @@ def main():
             CITY_TO_INFECT = airport
             print (airport)
             infectionAllStats[airport] = list()
-            for i in range(1,START+SIMULATION_LENGTH+1,DAYS_IN_MONTH):
+            for i in range(1,DAYS_IN_YEAR,DAYS_IN_MONTH): # START + SIMULATION_LENGTH+1
                 #print (i)
                 networkCopy = network.copy()
                 setupGlobalSIVR()
                 DATE_TO_INFECT = i
                 infectionAllStats[airport].append(0)
                 # Run infection simulation
-                for j in range(i,START+SIMULATION_LENGTH+1+i):
+                for j in range(i,DAYS_IN_YEAR+i): # START + SIMULATION_LENGTH+1+i
                     j %= SIMULATION_LENGTH
                     if j % INCUBATION == 0 or j == DATE_TO_INFECT:
                         # timeStepsTracker.append(i)
@@ -182,8 +189,9 @@ def main():
                     #if airport == "MIA":
                     #    print (network.nodes(networkCopy))
                 # print
-        print (infectionAllStats)
-
+        #print (infectionAllStats)
+        for airport in infectionAllStats:
+            print(airport, infectionAllStats[airport])
     else:
 
         for i in range(START,START+SIMULATION_LENGTH):
@@ -209,6 +217,7 @@ def main():
     # Stats of infection
     if STAT:
         for node in I:
+            # only for city to infect; can change to others by commenting out
             if node == CITY_TO_INFECT:
 
                 i, = plt.plot(timeStepsTracker, I[node],label="I")
@@ -379,9 +388,10 @@ def infection(input_network, timeStep):
                 #                        nodeDetails["pop"] * \
                 #                        routeInfo[key] / 365))
 
-                node[1]["Iair"] += int(nodeDetails["I"][0] / \
-                                   nodeDetails["pop"] * \
-                                   routeInfo[key] / 365)
+                node[1]["Iair"] += math.ceil((int(nodeDetails["I"][0] /
+                                   nodeDetails["pop"] *
+                                   routeInfo[key] / DAYS_IN_YEAR)) *
+                                   (1-SCREEN_PERC))
 
 
     #print (input_network.node)
