@@ -65,11 +65,13 @@ CITY_TO_INFECT = "ATL"
 DATE_TO_INFECT = 1
 RANGE_BEGIN = 1
 RANGE_END = 365
-MONTH = 31
+DAYS_IN_MONTH = 31
 STAT = False
 INCUBATION = 3  # 3-12 days , DEFAULT
 TO_RECOVER = 7  # DEFAULT
 RUN_ALL = False
+VACCINATE_PERC = 1 - (1/TAU) # DEFAULT
+VACCINATE = False
 
 def main():
     """
@@ -84,11 +86,11 @@ def main():
 
     """
     global MAP, CITY_TO_INFECT, RANGE_BEGIN, RANGE_END, DATE_TO_INFECT, STAT,TAU
-    global timeStepsTracker, INCUBATION, RUN_ALL
+    global timeStepsTracker, INCUBATION, RUN_ALL, VACCINATE_PERC, VACCINATE
 
     # Determine the parameters of the current simulation.
-    opts, args = getopt.getopt(sys.argv[1:], "msa", ["c=", "d=", "r1=", "r2=",
-                                                    "t=", "i="])
+    opts, args = getopt.getopt(sys.argv[1:], "msav", ["c=", "d=", "r1=", "r2=",
+                                                    "t=", "i=", "v="])
 
     # Check if the data arguments are available
     if len(args) < 3:
@@ -113,6 +115,9 @@ def main():
         # number of nodes infected
         elif opt == "-a":
             RUN_ALL = True
+        # vaccinate using default percent based on TAU
+        elif opt == "-v":
+            VACCINATE = True
         # infect a particular city
         elif opt == "--c":
             CITY_TO_INFECT = par
@@ -125,14 +130,19 @@ def main():
         # Ending part of simulation
         elif opt == "--r2":
             RANGE_END = int(par)
-        # A different tau for mosquito dynamics
+        # A different tau for mosquito dynamics and preset vaccination rate
+        # based on TAU, if user wants to change it, they must use the --v option
         elif opt == "--t":
             TAU = float(par)
+            VACCINATE_PERC = 1 - (1/TAU)
         # Set the incubation period before symptoms show and the infected
         # person can propagate the disease
         elif opt == "--i":
             INCUBATION = float(par)
-
+        # Change vaccination percentage and set model to vaccinate
+        elif opt == "--v":
+            VACCINATE_PERC = float(par)
+            VACCINATE = True
 
     # Create the network using the command arguments
     network = create_network(AIRPORT_DATA, ROUTE_DATA, MOSQUITO_CURVES)
@@ -149,7 +159,7 @@ def main():
             CITY_TO_INFECT = airport
             print (airport)
             infectionAllStats[airport] = list()
-            for i in range(1,RANGE_END+1,31):
+            for i in range(1,RANGE_END+1,DAYS_IN_MONTH):
                 #print (i)
                 networkCopy = network.copy()
                 setupGlobalSIVR()
@@ -170,40 +180,42 @@ def main():
                     #if airport == "MIA":
                     #    print (network.nodes(networkCopy))
                 # print
-
         print (infectionAllStats)
 
-    # else:
-    #     for i in range(RANGE_BEGIN,RANGE_END+DATE_TO_INFECT):
-    #         if i % INCUBATION == 0 or i == DATE_TO_INFECT:
-    #             timeStepsTracker.append(i)
-    #             infection(network, i)
-    #
+    else:
+        for i in range(RANGE_BEGIN,RANGE_END+DATE_TO_INFECT):
+            if i % INCUBATION == 0 or i == DATE_TO_INFECT:
+                timeStepsTracker.append(i)
+                infection(network, i)
+
+    # Print # of infected timeline
     # for airport in approvedAirports:
     #     print (airport, I[airport])
-    #
-    #
-    #
-    #
-    # # Visualize network
-    # if MAP:
-    #     visualize(network)
-    #     updatedVisualize(network)
-    # # Stats of infection
-    # if STAT:
-    #     for node in I:
-    #         if node == CITY_TO_INFECT:
-    #
-    #             i, = plt.plot(timeStepsTracker, I[node],label="I")
-    #             s, = plt.plot(timeStepsTracker, S[node],label='S')
-    #             r, = plt.plot(timeStepsTracker, R[node],label='R')
-    #             plt.legend(handles=[i,s,r])
-    #
-    #     plt.title(CITY_TO_INFECT + " Infection Dynamics")
-    #     plt.xlabel('Days of Year')
-    #     plt.ylabel('People')
-    #     plt.xlim(RANGE_BEGIN,RANGE_END)
-    #     plt.show()
+
+    # Print # of recovered per airport
+    for airport in approvedAirports:
+        print(airport, R[airport][-1])
+
+
+    # Visualize network
+    if MAP:
+        visualize(network)
+        updatedVisualize(network)
+    # Stats of infection
+    if STAT:
+        for node in I:
+            if node == CITY_TO_INFECT:
+
+                i, = plt.plot(timeStepsTracker, I[node],label="I")
+                s, = plt.plot(timeStepsTracker, S[node],label='S')
+                r, = plt.plot(timeStepsTracker, R[node],label='R')
+                plt.legend(handles=[i,s,r])
+
+        plt.title(CITY_TO_INFECT + " Infection Dynamics")
+        plt.xlabel('Days of Year')
+        plt.ylabel('People')
+        plt.xlim(RANGE_BEGIN,RANGE_END)
+        plt.show()
 
 
 
@@ -247,6 +259,12 @@ def create_network(nodes, edges, curves):
     with open(nodes, 'r', encoding='utf-8') as f:
         for line in f.readlines():
             entries = line.replace('"',"").rstrip().split(",")
+            population = int(entries[5])
+            vaccinated = 0
+
+            if VACCINATE:
+                vaccinated = math.ceil(population * VACCINATE_PERC)
+                population -= vaccinated
 
             G.add_node(int(entries[0]),
                        name=entries[1],
@@ -257,8 +275,8 @@ def create_network(nodes, edges, curves):
                        pos=(float(entries[3]),float(entries[4])),
                        I=[0,0],  # First num - Total I, second num new I
                        Iair=0,
-                       S=int(entries[5]),       #createHumans(int(entries[5])),
-                       V=0,
+                       S=population,       #createHumans(int(entries[5])),
+                       V=vaccinated,
                        R=0,
                        MOS=mosquitoCurves[entries[2]]
                        )
@@ -326,7 +344,7 @@ def create_network(nodes, edges, curves):
 def infection(input_network, timeStep):
     global I,S,V,R
     # mosCurve = [0,0,0,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0] # phx,
-    approxMonth = timeStep // 31 % 12
+    approxMonth = timeStep // DAYS_IN_MONTH % 12
 
 
     # Spread disease to other Airports
@@ -425,7 +443,9 @@ def updateIDic(network):
         popIDict[node[1]["IATA"]] = [x / node[1]["pop"] for x in I[node[1]["IATA"]]]
 
     print(popIDict)
-    arr = (np.linspace(0, len(popIDict[CITY_TO_INFECT]), math.ceil((RANGE_END-RANGE_BEGIN)/MONTH), endpoint=True, dtype=int))
+    arr = (np.linspace(0, len(popIDict[CITY_TO_INFECT]),
+                       math.ceil((RANGE_END-RANGE_BEGIN)/DAYS_IN_MONTH),
+                       endpoint=True, dtype=int))
     arr[-1] -= 1
     print(arr)
     for key,value in popIDict.items():
