@@ -1,11 +1,15 @@
 import sys
 import re
 
+
+
+# python convertAirports.py ./Data/airports.dat
+
 def main():
 
     args = sys.argv
 
-    dataFile = args[1]
+    dataFile = args[1] # airports.dat
 
     data = open(dataFile, 'r')
     outputFile = open('./Data/airportsMin.csv','w')

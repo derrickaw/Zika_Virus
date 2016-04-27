@@ -1,6 +1,10 @@
 import sys
 import re
 
+# python convertAirlinePassenger.py
+# ./Data/182980864_T_T100D_SEGMENT_ALL_CARRIER2.csv ./Data/airportsMin.csv
+
+
 def main():
 
     args = sys.argv
