@@ -27,3 +27,21 @@ We used the Kermack-McKendrick SIR model with delay, incubation, and Oâ€™Learyâ€
 - "--inc (new incubation days)" specify new incubination days for virus to start showing symptoms of disease and person can spread to others then
 - "--vac (new vaccination rate)" specify new vaccination rate to work with O'Leary vaccination formula
 - "--screen (new screening percent)" specify new screening percent to screen out passengers from airline travel
+
+### How to Run convertAirports.py:
+- The basic format if you are running from a command line prompt is "python convertAirports.py ./Data/airports.dat"
+- If running in say pycharm, set edit configuration to "./Data/airports.dat"
+
+### How to Run convertAirlinePassenger.py:
+- The basic format if you are running from a command line prompt is "python convertAirlinePassenger.py ./Data/182980864_T_T100D_SEGMENT_ALL_CARRIER2.csv ./Data/airportsMin.csv"
+- If running in say pycharm, set edit configuration to "./Data/182980864_T_T100D_SEGMENT_ALL_CARRIER2.csv ./Data/airportsMin.csv"
+
+
+### Data Files:
+- mosCurves.csv - was created using Fig. 2 of this paper: 
+Monaghan AJ, Morin CW, Steinhoff DF, Wilhelmi O, Hayden M, Quattrochi DA, Reiskind M, Lloyd AL, Smith K, Schmidt CA, Scalf PE, Ernst K. On the Seasonal Occurrence and Abundance of the Zika Virus Vector Mosquito Aedes Aegypti in the Contiguous United States. PLOS Currents Outbreaks. 2016 Mar 16 . Edition 1. doi: 10.1371/currents.outbreaks.50dfc7f46798675fc63e7d7da563da76.
+- airportsMin.csv - was created using airports.dat file which came from http://openflights.org/data.html and running the file through convertAirports.py
+- airlineRoutesPassengerData.csv - was created using travel data (182980864_T_T100D_SEGMENT_ALL_CARRIER2.csv) from United States Department of Transportation - Bureau of Transportation Statistics for airline travel from all of 2015 and running the file through convertAirlinePassenger.py
+- airports.dat - data from http://openflights.org/data.html
+- 182980864_T_T100D_SEGMENT_ALL_CARRIER2.csv - data from United States Department of Transportation - Bureau of Transportation Statistics
+
