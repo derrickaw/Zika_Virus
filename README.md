@@ -44,4 +44,4 @@ Monaghan AJ, Morin CW, Steinhoff DF, Wilhelmi O, Hayden M, Quattrochi DA, Reiski
 - airlineRoutesPassengerData.csv - was created using travel data (182980864_T_T100D_SEGMENT_ALL_CARRIER2.csv) from United States Department of Transportation - Bureau of Transportation Statistics for airline travel from all of 2015 and running the file through convertAirlinePassenger.py
 - airports.dat - data from http://openflights.org/data.html
 - 182980864_T_T100D_SEGMENT_ALL_CARRIER2.csv - data from United States Department of Transportation - Bureau of Transportation Statistics
-
+- airport_data.xlsx - data from wikipedia.org for determining which cities/hubs to consider for the simulation
