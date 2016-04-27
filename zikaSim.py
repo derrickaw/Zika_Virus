@@ -213,7 +213,7 @@ def main():
     # Visualize network
     if MAP:
         visualize(network)
-        updatedVisualize(network)
+        #updatedVisualize(network)
     # Stats of infection
     if STAT:
         for node in I:
@@ -292,9 +292,9 @@ def create_network(nodes, edges, curves):
             population = int(entries[5])
             vaccinated = 0
 
-            if VACCINATE:
-                vaccinated = math.ceil(population * VACCINATE_PERC)
-                population -= vaccinated
+            # if VACCINATE:
+            #     vaccinated = math.ceil(population * VACCINATE_PERC)
+            #     population -= vaccinated
 
             G.add_node(int(entries[0]),
                        name=entries[1],
@@ -419,6 +419,17 @@ def infection(input_network, timeStep):
                 if group[1] == node[1]["I"][1]:
                     node[1]["I"][1] = 0
 
+        # Vaccinate people
+        if VACCINATE:
+            if node[1]["I"][0] > 0 and node[1]["S"] > 0:
+                num_vaccinate = min(math.ceil(VACCINATE_PERC * node[1]["I"][0] *
+                                              node[1]["S"] / (node[1]["I"][0] +
+                                              node[1]["S"])), node[1]["S"])
+                node[1]["V"] += num_vaccinate
+                node[1]["S"] -= num_vaccinate
+                # print(node[1]["IATA"], num_vaccinate)
+
+
         # Infect cities
         if timeStep == DATE_TO_INFECT and node[1]["IATA"] == CITY_TO_INFECT:
             infectCity(input_network)
@@ -426,7 +437,6 @@ def infection(input_network, timeStep):
         newlyInfected = min(math.ceil(TAU * node[1]["MOS"][approxMonth] *
                             (node[1]["I"][1] +
                               node[1]["Iair"])),node[1]["S"])
-
 
         # if node[1]["IATA"] == "ATL":
         #     print (min(math.ceil(TAU * node[1]["MOS"][approxMonth] *
@@ -581,7 +591,7 @@ def visualize(network):
         )
 
     pos = dict()
-
+    labels = list()
     for pos_node in network.nodes():
         # Normalize the lat and lon values
         x,y = m(float(network.node[pos_node]['lon']),
@@ -591,13 +601,13 @@ def visualize(network):
 
     #m.drawmapboundary("aqua")
     #m.fillcontinents('#555555')
-    m.drawlsmask(land_color='coral',ocean_color='aqua',lakes=True)
+    m.drawlsmask(land_color='green',ocean_color='aqua',lakes=True)
     #m.bluemarble()
 
     # First pass - Green lines
     nx.draw_networkx_edges(network,pos,edgelist=network.edges(),
             width=1,
-            edge_color="green",
+            edge_color="blue",
             alpha=0.5,
             arrows=False)
 
@@ -606,7 +616,10 @@ def visualize(network):
             linewidths=1,
             node_size=10,
             with_labels=False,
-            node_color = "green")
+            node_color = "white")
+
+    # nx.draw_networkx_labels(network,pos,labels)
+
 
     #m.bluemarble()
     #plt.title=title
