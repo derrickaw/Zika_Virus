@@ -74,6 +74,9 @@ RUN_ALL = False
 VACCINATE_PERC = 1 - (1/TAU) # DEFAULT
 VACCINATE = False
 SCREEN_PERC = 0
+MONTH_MAP = {1: "January", 2: "February", 3: "March", 4: "April", 5: "May",
+             6:"June", 7: "July", 8: "August", 9: "September", 10: "October",
+             11: "November", 12: "December"}
 
 def main():
     """
@@ -212,8 +215,15 @@ def main():
 
     # Visualize network
     if MAP:
-        visualize(network)
-        #updatedVisualize(network)
+        #visualize(network)
+        theIDic = updateIDic(network)
+        print("Infected Dict Ratios: ", theIDic)
+        print("ATL Ratio List : ", theIDic['ATL'])
+        print("Length of ATL List", len(theIDic['ATL']))
+        for i in range(len(theIDic[CITY_TO_INFECT])):
+            month = i + START//DAYS_IN_MONTH % 12
+            print("MON", month)
+            updatedVisualize(network, theIDic, i, month)
     # Stats of infection
     if STAT:
         for node in I:
@@ -478,34 +488,62 @@ def setupGlobalSIVR():
 
 
 def updateIDic(network):
-    updatedIDict = {}
     popIDict = {}
+    print("ATL's I :", I['ATL'])
+    # divide all I by the population
     for node in network.nodes_iter(network):
         popIDict[node[1]["IATA"]] = [x / node[1]["pop"] for x in I[node[1]["IATA"]]]
+    print("ATL's IDIC :", popIDict['ATL'])
+    print("POPULATION IDict :", popIDict)
+    updatedIDict = {}
+    for key in popIDict:
+        updatedIDict[key] = [0] * 12
+    print("BEFORE UPDATED IDIC:",updatedIDict)
 
-    print(popIDict)
-    arr = (np.linspace(0, len(popIDict[CITY_TO_INFECT]),
-                       math.ceil((SIMULATION_LENGTH)/DAYS_IN_MONTH),
-                       endpoint=True, dtype=int))
-    arr[-1] -= 1
-    print(arr)
-    for key,value in popIDict.items():
-        updatedIDict[key] = [value[i] for i in arr]
+    timeStepMonth = list()
+    for i in timeStepsTracker:
+        if ((i // DAYS_IN_MONTH) % 12 == 0):
+            #print(12)
+            timeStepMonth.append(12)
+        else:
+            #print((i // DAYS_IN_MONTH) % 12)
+            timeStepMonth.append((i // DAYS_IN_MONTH) % 12)
+    print("TIME STEP MONTH:" , timeStepMonth)
+
+    for key in popIDict:
+        for i in range(len(timeStepMonth)):
+            if (updatedIDict[key][(timeStepMonth[i]-1)] < popIDict[key][i]):
+                updatedIDict[key][(timeStepMonth[i]-1)] = popIDict[key][i]
+
+    print("AFTER BUT STILL NOT FINAL updatedIDict", updatedIDict)
+    inital = timeStepMonth[0]
+    for key, value in updatedIDict.items():
+        value = value[inital-1:] + value[:inital-1]
+        updatedIDict[key] = value
+
+    print("FINAL updatedIDict", updatedIDict)
+    # arr = (np.linspace(0, len(popIDict[CITY_TO_INFECT]),
+                       #math.ceil((SIMULATION_LENGTH)/DAYS_IN_MONTH),
+                       #endpoint=True, dtype=int))
+    #arr[-1] -= 1
+    #print(arr)
+    #for key,value in popIDict.items():
+        #updatedIDict[key] = [value[i] for i in arr]
 
     return updatedIDict
 
 def getColor(value):
     if value <= .333:
-        return "yellow"
+        return "co"
     elif value <= .667:
-        return "orange"
+        return "yo"
     else:
-        return "red"
+        return "ro"
 
-def updatedVisualize(network):
-    print("-- Starting to Visualize --")
+def updatedVisualize(network, IDic, position, month):
+    print("-- Starting to Visualize [", position+1, "] --")
 
-    updatedIDic = updateIDic(network)
+    #updatedIDic = updateIDic(network)
     #print("UPDATED DIC", updatedIDic)
 
     map = Basemap(
@@ -516,8 +554,8 @@ def updatedVisualize(network):
         )
     #map.drawmapboundary("aqua")
     #map.fillcontinents('#555555')
-    map.drawlsmask(land_color='green',ocean_color='aqua',lakes=True)
-    #map.bluemarble()
+    #map.drawlsmask(land_color='green',ocean_color='aqua',lakes=True)
+    map.bluemarble()
 
     pos = dict()
 
@@ -525,14 +563,14 @@ def updatedVisualize(network):
         # Normalize the lat and lon values
         x,y = map(float(network.node[pos_node]['lon']),
                 float(network.node[pos_node]['lat']))
-        print("x,y", x, y)
+        #print("x,y", float(network.node[pos_node]['lon']),float(network.node[pos_node]['lat']))
         pos[pos_node] = [x,y]
 
     #print("POS", network.nodes())
     # First pass - edges
     nx.draw_networkx_edges(network,pos,edgelist=network.edges(),
             width=1,
-            edge_color="blue",
+            edge_color="gray",
             alpha=0.5,
             arrows=False)
 
@@ -549,15 +587,12 @@ def updatedVisualize(network):
         # Normalize the lat and lon values
         x,y = map(float(network.node[pos_node]['lon']),
                 float(network.node[pos_node]['lat']))
-        msize = math.ceil(network.node[pos_node]['pop'] * .00001)
-        mcolor = getColor(updatedIDic[network.node[pos_node]['IATA']][2])
-        print("MAP ATTR", x, y, mcolor, msize)
-        map.plot(x, y, mcolor, markersize=msize)
+        #msize = math.ceil(network.node[pos_node]['pop'] * .00001)
+        mcolor = getColor(IDic[network.node[pos_node]['IATA']][position])
+        print("AIRPORT ATTRIBUTES:", network.node[pos_node]['IATA'], IDic[network.node[pos_node]['IATA']], mcolor)
+        map.plot(x, y, mcolor, markersize=7)
         #print(updatedIDic[network.node[pos_node]['IATA']][2])
-    #x,y = map(9188777, 357932) # wrong x,y - does not work
-    #map.plot(x, y,"red", markersize=100)
-    x,y = map(-90, 38.78) #correct x,y that works
-    map.plot(x, y, 'ro', markersize=25)
+
 
     #Adjust the plot limits
     cut = 1.05
@@ -573,6 +608,11 @@ def updatedVisualize(network):
     plt.xlim(xmin,xmax)
     plt.ylim(ymin,ymax)
 
+    title_string = "Zika Infection for the Month of " + MONTH_MAP[month]
+    savefigStr = "infection" + str(position) + ".png"
+    print(str(savefigStr))
+    #plt.savefig(savefigStr)
+    plt.title(title_string)
     plt.axis('off')
     plt.show()
     plt.close()
@@ -601,20 +641,20 @@ def visualize(network):
 
     #m.drawmapboundary("aqua")
     #m.fillcontinents('#555555')
-    m.drawlsmask(land_color='green',ocean_color='aqua',lakes=True)
-    #m.bluemarble()
+    #m.drawlsmask(land_color='green',ocean_color='aqua',lakes=True)
+    m.bluemarble()
 
     # First pass - Green lines
     nx.draw_networkx_edges(network,pos,edgelist=network.edges(),
             width=1,
-            edge_color="blue",
+            edge_color="orange",
             alpha=0.5,
             arrows=False)
 
     nx.draw_networkx_nodes(network,
             pos,
             linewidths=1,
-            node_size=10,
+            node_size=40,
             with_labels=False,
             node_color = "white")
 
