@@ -12,6 +12,7 @@ Our task is to understand the potential propagation dynamics of the Zika virus v
 We used the Kermack-McKendrick SIR model with delay, incubation, and O’Leary’s add-on for vaccination.  We extended several existing models on domestic mosquito abundance and major airline route network to include the SIR model.
 
 ### How to Run zikaSim.py:
+- Main simulation file
 - The basic format if you are running from a command line prompt is "python zikaSim.py [-m] [-s] [-a] [-v] [--c (city to infect)] [--d (date to infect)] [--start (start date of simulation)] [--days (number of days to run simulation)] [-- tau (new tau for disease)] [--inc (new incubation days)] [--vac (new vaccination rate)] [--screen (new screening percent)] ./Data/airportsMin.csv ./Data/airlineRoutesPassengerData.csv ./Data/mosCurves.csv
 - If running in say pycharm, set edit configuration to "[-m] [-s] [-a] [-v] [--c (city to infect)] [--d (date to infect)] [--start (start date of simulation)] [--days (number of days to run simulation)] [-- tau (new tau for disease)] [--inc (new incubation days)] [--vac (new vaccination rate)] [--screen (new screening percent)] ./Data/airportsMin.csv ./Data/airlineRoutesPassengerData.csv ./Data/mosCurves.csv
 ".
@@ -29,13 +30,19 @@ We used the Kermack-McKendrick SIR model with delay, incubation, and O’Leary�
 - "--screen (new screening percent)" specify new screening percent to screen out passengers from airline travel
 
 ### How to Run convertAirports.py:
+- Converts airports to appropriate data format for use in simulation file
 - The basic format if you are running from a command line prompt is "python convertAirports.py ./Data/airports.dat"
 - If running in say pycharm, set edit configuration to "./Data/airports.dat"
 
 ### How to Run convertAirlinePassenger.py:
+- Converts passenger and airline data to appropriate data format for use in simulation file
 - The basic format if you are running from a command line prompt is "python convertAirlinePassenger.py ./Data/182980864_T_T100D_SEGMENT_ALL_CARRIER2.csv ./Data/airportsMin.csv"
 - If running in say pycharm, set edit configuration to "./Data/182980864_T_T100D_SEGMENT_ALL_CARRIER2.csv ./Data/airportsMin.csv"
 
+### How to Run powerLawAirlineRoutes.py:
+- Creates figure of flight data based on number of out-degrees vs count of the out-degree airports
+- The basic format if you are running from a command line prompt is " python powerLawAirlineRoutes.py ./Data/airports.dat ./Data/182980864_T_T100D_SEGMENT_ALL_CARRIER2.csv"
+- If running in say pycharm, set edit configuration to "./Data/airports.dat ./Data/182980864_T_T100D_SEGMENT_ALL_CARRIER2.csv"
 
 ### Data Files:
 - mosCurves.csv - was created using Fig. 2 of this paper: 
@@ -45,3 +52,4 @@ Monaghan AJ, Morin CW, Steinhoff DF, Wilhelmi O, Hayden M, Quattrochi DA, Reiski
 - airports.dat - data from http://openflights.org/data.html
 - 182980864_T_T100D_SEGMENT_ALL_CARRIER2.csv - data from United States Department of Transportation - Bureau of Transportation Statistics
 - airport_data.xlsx - data from wikipedia.org for determining which cities/hubs to consider for the simulation
+- powerLawData.csv - output data from running powerLawAirlineRoutes.py; in format of [number of degrees, count]
