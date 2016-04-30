@@ -1,37 +1,46 @@
 #!/usr/bin/python3
 """
 zikaSim.py is simulator for infection spreading by air travel and at major
-metro areas.  The goal of this simulation is to model the Zika infection spread and
-different experiments
+metro areas.  The goal of this simulation is to model the Zika infection spread
+and use parameters for different experiments
 
 # test edge-based quarantine strategies for the given network.
 
 Usage:
-    simulator.py -ms [c=<IATA>] [d=<start infection data]
-        [r1=<start simulation>] [r2=<end simulation>]
+    simulator.py -msavz [c=<IATA>] [d=<start infection data]
+        [start=<start simulation>] [days=<end simulation>]
+        [tau=<tau of disease>] [inc=<incubation days>] [vac=<vaccinate rate>]
+        [screen=<screen passenger rate>]
         <airport database> <route database> <mosquito curves database>
 
 Flags:
-    -m: Show map of infection
-    -s: Stats on infection at starting city
+    -m          Produce network visualization
+    -s          Show stats at infected city
+    -a          Run simulation on all combinations of cities and months
+    -v          Vaccinate using O'Leary vaccination formula (1-(1/tau)) default
+    -z          Produce nework visualization for all months of interest
 
 Option:
-    --c         The IATA code for hub
-    --d         Start day of infection
-    --r1        Start of simulation
-    --r2        End of simulation
-    --t         Ro - Reproduction number for particular virus
+    --c         The IATA code for hub to start infection at (ATL is default)
+    --d         Start day of infection (1 is default)
+    --start     Start day of simulation (1 is default)
+    --days      Number of days to run simulation (365 is default)
+    --tau       Ro - Reproduction number for particular virus (4 is default)
+    --inc       Incubation days for infection to show symptoms in human and be
+                passed again
+    --vac       Set vac rate to something different than (1-(1/tau))
+    --screen    Set screen rate at airports to prevent sick humans from moving
 """
 
 # Title:  zikaSim.py
 # Updated Authors: Tilak Patel and Derrick Williams
-# Original Authors: Nicholas A. Yager and Matthew Taylor
-# Date:   2016-04-12
+# Original Authors of NetworkX concept and input: Nicholas A. Yager
+# and Matthew Taylor
+# Date:   2016-04-30
 
-# python zikaSim.py -s --c ATL --d 125 --r1 120 --r2 180 ./Data/airportsMin.csv ./Data/airlineRoutesPassengerData.csv ./Data/mosCurves.csv
-# python zikaSim.py -s --d 125 --r1 120 --r2 365 --t 4 ./Data/airportsMin.csv ./Data/airlineRoutesPassengerData.csv ./Data/mosCurves.csv
-
-
+# Typical command line entry
+# python zikaSim.py -s --d 125 --r1 120 --r2 365 --t 4 ./Data/airportsMin.csv
+# ./Data/airlineRoutesPassengerData.csv ./Data/mosCurves.csv
 
 import copy
 import getopt
@@ -66,17 +75,19 @@ DATE_TO_INFECT = 1
 START = 1
 DAYS_IN_YEAR = 365
 DAYS_IN_MONTH = 31
+MONTHS_IN_YEAR = 12
 SIMULATION_LENGTH = DAYS_IN_YEAR
 STAT = False
-INCUBATION = 3  # 3-12 days , DEFAULT
-TO_RECOVER = 7  # DEFAULT
+INCUBATION = 3  # 3-12 days , DEFAULT 3
+TO_RECOVER = 7  # DEFAULT 7
 RUN_ALL = False
 VACCINATE_PERC = 1 - (1/TAU) # DEFAULT
 VACCINATE = False
 SCREEN_PERC = 0
-MONTH_MAP = {1: "January", 2: "February", 3: "March", 4: "April", 5: "May",
-             6:"June", 7: "July", 8: "August", 9: "September", 10: "October",
-             11: "November", 12: "December"}
+MAP_ALL = False
+MONTH_MAP = {0: "January", 1: "February", 2: "March", 3: "April", 4: "May",
+             5:"June", 6: "July", 7: "August", 8: "September", 9: "October",
+             10: "November", 11: "December"}
 
 def main():
     """
@@ -92,24 +103,25 @@ def main():
     """
     global MAP, CITY_TO_INFECT, START, SIMULATION_LENGTH, DATE_TO_INFECT, STAT,\
         timeStepsTracker, INCUBATION, RUN_ALL, VACCINATE_PERC, VACCINATE, TAU, \
-        SCREEN_PERC
+        SCREEN_PERC, MAP_ALL, TO_RECOVER
 
     # Determine the parameters of the current simulation.
-    opts, args = getopt.getopt(sys.argv[1:], "msav", ["c=", "d=", "start=",
+    opts, args = getopt.getopt(sys.argv[1:], "msavz", ["c=", "d=", "start=",
                                                        "days=","tau=", "inc=",
-                                                       "vac=", "screen="])
+                                                       "vac=", "screen=",
+                                                       "rec="])
 
     # Check if the data arguments are available
     if len(args) < 3:
         print(__doc__)
         exit()
 
+    # Data files
     AIRPORT_DATA = args[0]
     ROUTE_DATA = args[1]
     MOSQUITO_CURVES = args[2]
 
-    # simulations = list()
-
+    # Determine which parameters to update or simulations to work on
     for opt, par in opts:
         # map of network
         if opt == "-m":
@@ -125,6 +137,8 @@ def main():
         # vaccinate using default percent based on TAU
         elif opt == "-v":
             VACCINATE = True
+        elif opt == "-z":
+            MAP_ALL = True
         # infect a particular city
         elif opt == "--c":
             CITY_TO_INFECT = par
@@ -134,6 +148,8 @@ def main():
         # Beginning part of simulation
         elif opt == "--start":
             START = int(par)
+            if DATE_TO_INFECT < START:
+                DATE_TO_INFECT = START
         # Number of days to run simulation, if not entered, default is 365
         elif opt == "--days":
             SIMULATION_LENGTH = int(par)
@@ -154,6 +170,9 @@ def main():
         # dynamics
         elif opt == "--screen":
             SCREEN_PERC = float(par)
+        # Change the recover rate for humans (time that they can infect others)
+        elif opt == "--rec":
+            TO_RECOVER = float(par)
 
 
     # Create the network using the command arguments
@@ -166,13 +185,14 @@ def main():
 
     # Entire network run
     if RUN_ALL:
+        print ("-- Starting all simulations --\n")
+        sys.stdout.flush()
+
         for airport in approvedAirports:
-            # if airport == "MIA":
             CITY_TO_INFECT = airport
-            print (airport)
+            # print (airport)
             infectionAllStats[airport] = list()
             for i in range(1,DAYS_IN_YEAR,DAYS_IN_MONTH): # START + SIMULATION_LENGTH+1
-                #print (i)
                 networkCopy = network.copy()
                 setupGlobalSIVR()
                 DATE_TO_INFECT = i
@@ -181,18 +201,11 @@ def main():
                 for j in range(i,DAYS_IN_YEAR+i): # START + SIMULATION_LENGTH+1+i
                     j %= SIMULATION_LENGTH
                     if j % INCUBATION == 0 or j == DATE_TO_INFECT:
-                        # timeStepsTracker.append(i)
                         infection(networkCopy, j)
-                    # for node in networkCopy.nodes_iter(networkCopy):
-                    #     if node[1]["IATA"] == "MIA" and airport == "MIA":
-                    #         print (node)
+
                 for node in networkCopy.nodes_iter(networkCopy):
-                    # print (node[1]["R"])
                     infectionAllStats[airport][-1] += node[1]["R"]
-                    #if airport == "MIA":
-                    #    print (network.nodes(networkCopy))
-                # print
-        #print (infectionAllStats)
+
         for airport in infectionAllStats:
             print(airport, infectionAllStats[airport])
     else:
@@ -207,25 +220,30 @@ def main():
     #     print (airport, I[airport])
 
     # Print # of recovered per airport
-    for airport in approvedAirports:
-        print(airport, R[airport][-1])
+    # for airport in approvedAirports:
+    #     print(airport, R[airport][-1])
 
 
-
-
-    # Visualize network
+    # Visualize network only
     if MAP:
-        #visualize(network)
+        visualize(network)
+
+    # Visualize network for entire simulation of interest
+    if MAP_ALL:
         theIDic = updateIDic(network)
-        print("Infected Dict Ratios: ", theIDic)
-        print("ATL Ratio List : ", theIDic['ATL'])
-        print("Length of ATL List", len(theIDic['ATL']))
+        #print("Infected Dict Ratios: ", theIDic)
+        #print("ATL Ratio List : ", theIDic['ATL'])
+        #print("Length of ATL List", len(theIDic['ATL']))
         for i in range(len(theIDic[CITY_TO_INFECT])):
-            month = i + START//DAYS_IN_MONTH % 12
-            print("MON", month)
+            month = i + START//DAYS_IN_MONTH % MONTHS_IN_YEAR
+            #print("MON", month)
             updatedVisualize(network, theIDic, i, month)
+
     # Stats of infection
     if STAT:
+        print ("-- Creating Stats Figure --\n")
+        sys.stdout.flush()
+
         for node in I:
             # only for city to infect; can change to others by commenting out
             if node == CITY_TO_INFECT:
@@ -241,26 +259,6 @@ def main():
         plt.ylabel('People')
         plt.xlim(START,START+SIMULATION_LENGTH)
         plt.show()
-
-
-# def reorderStats():
-#     global timeStepsTracker, I, S, R, V
-#
-#     foundSpot = 0
-#     for i in range(1,len(timeStepsTracker)):
-#         if timeStepsTracker[i-1] > timeStepsTracker[i]:
-#             foundSpot = i
-#             break
-#         print(foundSpot)
-#     timeStepsTracker = timeStepsTracker[foundSpot:] + \
-#                        timeStepsTracker[:foundSpot]
-#     for airport in approvedAirports:
-#         I[airport] = I[airport][foundSpot:] + I[airport][:foundSpot]
-#         S[airport] = S[airport][foundSpot:] + S[airport][:foundSpot]
-#         R[airport] = R[airport][foundSpot:] + R[airport][:foundSpot]
-#         V[airport] = V[airport][foundSpot:] + V[airport][:foundSpot]
-
-
 
 
 def create_network(nodes, edges, curves):
@@ -280,10 +278,11 @@ def create_network(nodes, edges, curves):
     global routeInfo
     global approvedAirports
 
-    print("Creating network.")
+    print("-- Creating network --\n")
+    sys.stdout.flush()
     G = nx.Graph()
 
-    print("\tLoading airports", end="")
+    print("-- Loading mosquito curves --\n", end="")
     sys.stdout.flush()
 
     # Load mosquito curves
@@ -295,16 +294,15 @@ def create_network(nodes, edges, curves):
                 entries[i] = float(entries[i])
             mosquitoCurves[entries[1]] = entries[2:14]
 
+    print("-- Loading airports --\n", end="")
+    sys.stdout.flush()
+
     # Populate the graph with nodes.
     with open(nodes, 'r', encoding='utf-8') as f:
         for line in f.readlines():
             entries = line.replace('"',"").rstrip().split(",")
             population = int(entries[5])
             vaccinated = 0
-
-            # if VACCINATE:
-            #     vaccinated = math.ceil(population * VACCINATE_PERC)
-            #     population -= vaccinated
 
             G.add_node(int(entries[0]),
                        name=entries[1],
@@ -321,9 +319,9 @@ def create_network(nodes, edges, curves):
                        MOS=mosquitoCurves[entries[2]]
                        )
 
-    print("\t\t\t\t\t[Done]")
+    #print("\t\t\t\t\t[Done]")
 
-    print("\tLoading routes",end="")
+    print("-- Loading routes --\n",end="")
     sys.stdout.flush()
 
     # Populate the graph with edges.
@@ -356,35 +354,25 @@ def create_network(nodes, edges, curves):
                 pass
             line_num += 1
 
-    print("\t\t\t\t\t\t[Done]")
-
-
-
-    # Calculate the edge weights
-    # print("\tCalculating edge weights",end="")
-    # G = calculate_weights(G)
-    # print("\t\t\t\t[Done]")
-
-    # Add clustering data
-    # print("\tCalculating clustering coefficents",end="")
-    # cluster_network = nx.Graph(G)
-    # lcluster = nx.clustering(cluster_network)
-    # for i,j in G.edges():
-    #     cluster_sum = lcluster[i] + lcluster[j]
-    #     G[i][j]['cluster'] = cluster_sum
-    # print("\t\t\t[Done]")
+    # print("\t\t\t\t\t\t[Done]")
 
     return G
 
 
-
-
-
-
 def infection(input_network, timeStep):
+    """
+    Run infection simulation one time step
+
+    Args:
+        input_network: networkX graph network
+        timeStep: current time step of simulation to work on in days
+
+    Returns:
+        Nothing
+    """
+
     global I,S,V,R
-    # mosCurve = [0,0,0,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0.33,0] # phx,
-    approxMonth = timeStep // DAYS_IN_MONTH % 12
+    approxMonth = timeStep // DAYS_IN_MONTH % MONTHS_IN_YEAR
 
 
     # Spread disease to other Airports
@@ -393,23 +381,14 @@ def infection(input_network, timeStep):
         for key in routeInfo:
             if node[1]["IATA"] == key[2]:
                 nodeDetails = currentNodes[int(key[1])]
-                # if node[1]["IATA"] == "ATL":
-                #     print (int(nodeDetails["I"][0] / \
-                #                        nodeDetails["pop"] * \
-                #                        routeInfo[key] / 365))
 
                 node[1]["Iair"] += math.ceil((int(nodeDetails["I"][0] /
                                    nodeDetails["pop"] *
                                    routeInfo[key] / DAYS_IN_YEAR)) *
                                    (1-SCREEN_PERC))
 
-
-    #print (input_network.node)
-
     # Infection simulation at hubs
     for node in input_network.nodes_iter(input_network):
-        # if node[1]["IATA"] == "MIA":
-        #    print(node[1]["I"])
 
         #  Record stats
         I[node[1]["IATA"]].append(node[1]["I"][0])
@@ -437,7 +416,6 @@ def infection(input_network, timeStep):
                                               node[1]["S"])), node[1]["S"])
                 node[1]["V"] += num_vaccinate
                 node[1]["S"] -= num_vaccinate
-                # print(node[1]["IATA"], num_vaccinate)
 
 
         # Infect cities
@@ -467,6 +445,19 @@ def infection(input_network, timeStep):
 
 
 def infectCity(input_network):
+    """
+    Infect designated city with first infection of 1
+
+    Args:
+        input_network: networkX graph network
+
+    Returns:
+        Nothing
+    """
+    print("-- Infecting " + CITY_TO_INFECT + " in " +
+          MONTH_MAP[(DATE_TO_INFECT//DAYS_IN_MONTH)%MONTHS_IN_YEAR] +
+          " --\n")
+
     for node in input_network.nodes_iter(input_network):
         if node[1]["IATA"] == CITY_TO_INFECT:
             node[1]["S"] -= 1
@@ -474,9 +465,18 @@ def infectCity(input_network):
             node[1]["I"][0] += 1
             node[1]["I"][1] += 1
 
-            #print("infected",node[1]["I"])
 
 def setupGlobalSIVR():
+    """
+    Setup globals to run stats on SIVR
+
+    Args:
+        Nothing
+
+    Returns:
+        Nothing
+    """
+
     global I,S,V,R
 
     for airport in approvedAirports:
@@ -486,42 +486,52 @@ def setupGlobalSIVR():
         R[airport] = list()
 
 
-
 def updateIDic(network):
+    """
+    Shifts around Infection dictionary so that for each city the start of the
+    infection is first
+
+    Args:
+        network: networkX graph network
+
+    Returns:
+        Updated infection dictionary
+    """
+
     popIDict = {}
-    print("ATL's I :", I['ATL'])
+    #print("ATL's I :", I['ATL'])
     # divide all I by the population
     for node in network.nodes_iter(network):
         popIDict[node[1]["IATA"]] = [x / node[1]["pop"] for x in I[node[1]["IATA"]]]
-    print("ATL's IDIC :", popIDict['ATL'])
-    print("POPULATION IDict :", popIDict)
+    #print("ATL's IDIC :", popIDict['ATL'])
+    #print("POPULATION IDict :", popIDict)
     updatedIDict = {}
     for key in popIDict:
-        updatedIDict[key] = [0] * 12
-    print("BEFORE UPDATED IDIC:",updatedIDict)
+        updatedIDict[key] = [0] * MONTHS_IN_YEAR
+    #print("BEFORE UPDATED IDIC:",updatedIDict)
 
     timeStepMonth = list()
     for i in timeStepsTracker:
-        if ((i // DAYS_IN_MONTH) % 12 == 0):
+        if ((i // DAYS_IN_MONTH) % MONTHS_IN_YEAR == 0):
             #print(12)
-            timeStepMonth.append(12)
+            timeStepMonth.append(MONTHS_IN_YEAR)
         else:
             #print((i // DAYS_IN_MONTH) % 12)
-            timeStepMonth.append((i // DAYS_IN_MONTH) % 12)
-    print("TIME STEP MONTH:" , timeStepMonth)
+            timeStepMonth.append((i // DAYS_IN_MONTH) % MONTHS_IN_YEAR)
+    #print("TIME STEP MONTH:" , timeStepMonth)
 
     for key in popIDict:
         for i in range(len(timeStepMonth)):
             if (updatedIDict[key][(timeStepMonth[i]-1)] < popIDict[key][i]):
                 updatedIDict[key][(timeStepMonth[i]-1)] = popIDict[key][i]
 
-    print("AFTER BUT STILL NOT FINAL updatedIDict", updatedIDict)
+    #print("AFTER BUT STILL NOT FINAL updatedIDict", updatedIDict)
     inital = timeStepMonth[0]
     for key, value in updatedIDict.items():
         value = value[inital-1:] + value[:inital-1]
         updatedIDict[key] = value
 
-    print("FINAL updatedIDict", updatedIDict)
+    #print("FINAL updatedIDict", updatedIDict)
     # arr = (np.linspace(0, len(popIDict[CITY_TO_INFECT]),
                        #math.ceil((SIMULATION_LENGTH)/DAYS_IN_MONTH),
                        #endpoint=True, dtype=int))
@@ -532,7 +542,18 @@ def updateIDic(network):
 
     return updatedIDict
 
+
 def getColor(value):
+    """
+    Correlate value to color
+
+    Args:
+        value: current infection rate at node
+
+    Returns:
+        Color for node
+    """
+
     if value <= .333:
         return "co"
     elif value <= .667:
@@ -540,8 +561,22 @@ def getColor(value):
     else:
         return "ro"
 
+
 def updatedVisualize(network, IDic, position, month):
-    print("-- Starting to Visualize [", position+1, "] --")
+    """
+    Produce multiple visualizations of simulations
+
+    Args:
+        nework: networkX graph network
+        IDic: Infection dictionary for entire network
+        position: position in infection dictionary for saving figures
+        month: Current month to print on figure
+
+    Returns:
+        Nothing
+    """
+
+    print("-- Starting to Visualize [", position+1, "] --\n")
 
     #updatedIDic = updateIDic(network)
     #print("UPDATED DIC", updatedIDic)
@@ -589,7 +624,7 @@ def updatedVisualize(network, IDic, position, month):
                 float(network.node[pos_node]['lat']))
         #msize = math.ceil(network.node[pos_node]['pop'] * .00001)
         mcolor = getColor(IDic[network.node[pos_node]['IATA']][position])
-        print("AIRPORT ATTRIBUTES:", network.node[pos_node]['IATA'], IDic[network.node[pos_node]['IATA']], mcolor)
+        # print("AIRPORT ATTRIBUTES:", network.node[pos_node]['IATA'], IDic[network.node[pos_node]['IATA']], mcolor)
         map.plot(x, y, mcolor, markersize=7)
         #print(updatedIDic[network.node[pos_node]['IATA']][2])
 
@@ -618,10 +653,18 @@ def updatedVisualize(network, IDic, position, month):
     plt.close()
 
 
-
-
 def visualize(network):
-    print("-- Starting to Visualize --")
+    """
+    Produces general map of network
+
+    Args:
+        network: networkX graph network
+
+    Returns:
+        Nothing
+    """
+
+    print("-- Starting to Visualize Map Network --\n")
 
     m = Basemap(
         projection='merc',
@@ -681,7 +724,6 @@ def visualize(network):
     plt.axis('off')
     plt.show()
     plt.close()
-
 
 
 if __name__ == "__main__":
