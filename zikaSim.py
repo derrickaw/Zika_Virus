@@ -576,7 +576,7 @@ def updatedVisualize(network, IDic, position, month):
         Nothing
     """
 
-    print("-- Starting to Visualize [", position+1, "] --\n")
+    print("-- Starting to Visualize [", MONTH_MAP[month], "] --\n")
 
     #updatedIDic = updateIDic(network)
     #print("UPDATED DIC", updatedIDic)
@@ -644,11 +644,16 @@ def updatedVisualize(network, IDic, position, month):
     plt.ylim(ymin,ymax)
 
     title_string = "Zika Infection for the Month of " + MONTH_MAP[month]
-    savefigStr = "infection" + str(position) + ".png"
-    print(str(savefigStr))
-    #plt.savefig(savefigStr)
+    savefigStr = "./Images/"
+    if not VACCINATE:
+        savefigStr += "infection-"
+    else:
+        savefigStr += "infectionWithVaccination-"
+    savefigStr += MONTH_MAP[month] + ".png"
+    #print(str(savefigStr))
     plt.title(title_string)
     plt.axis('off')
+    plt.savefig(savefigStr)
     plt.show()
     plt.close()
 
