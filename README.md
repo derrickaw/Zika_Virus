@@ -16,10 +16,11 @@ We used the Kermack-McKendrick SIR model with delay, incubation, and Oâ€™Learyâ€
 - The basic format if you are running from a command line prompt is "python zikaSim.py [-m] [-s] [-a] [-v] [--c (city to infect)] [--d (date to infect)] [--start (start date of simulation)] [--days (number of days to run simulation)] [-- tau (new tau for disease)] [--inc (new incubation days)] [--vac (new vaccination rate)] [--screen (new screening percent)] ./Data/airportsMin.csv ./Data/airlineRoutesPassengerData.csv ./Data/mosCurves.csv
 - If running in say pycharm, set edit configuration to "[-m] [-s] [-a] [-v] [--c (city to infect)] [--d (date to infect)] [--start (start date of simulation)] [--days (number of days to run simulation)] [-- tau (new tau for disease)] [--inc (new incubation days)] [--vac (new vaccination rate)] [--screen (new screening percent)] ./Data/airportsMin.csv ./Data/airlineRoutesPassengerData.csv ./Data/mosCurves.csv
 ".
-- "-m" is for producing a map of the network simulation for one city
+- "-m" is for producing a map of the network
 - "-s" is for showing stats at starting infection city
 - "-a" run every simulation with starting infection in every month and in every city
 - "-v" vaccinate using default percent based on stopping infection with 1 - 1/TAU
+- "-z" show visualizations from one city for entire year
 - "--c (city to infect)" specify what city to infect
 - "--d (date to infect)" specity the date the infection should start
 - "--start (start date of simulation)" specify the start date of the simulation
@@ -28,6 +29,7 @@ We used the Kermack-McKendrick SIR model with delay, incubation, and Oâ€™Learyâ€
 - "--inc (new incubation days)" specify new incubination days for virus to start showing symptoms of disease and person can spread to others then
 - "--vac (new vaccination rate)" specify new vaccination rate to work with O'Leary vaccination formula
 - "--screen (new screening percent)" specify new screening percent to screen out passengers from airline travel
+- "--rec" change recovered time for humans
 
 ### How to Run convertAirports.py:
 - Converts airports to appropriate data format for use in simulation file
